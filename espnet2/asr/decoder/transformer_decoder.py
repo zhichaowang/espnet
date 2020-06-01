@@ -59,6 +59,7 @@ class TransformerDecoder(AbsDecoder):
         pos_enc_class=PositionalEncoding,
         normalize_before: bool = True,
         concat_after: bool = False,
+        tmp: bool = False,
     ):
         assert check_argument_types()
         super().__init__()

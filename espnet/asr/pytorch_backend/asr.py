@@ -493,6 +493,11 @@ def train(args):
         optimizer = get_std_opt(
             model, args.adim, args.transformer_warmup_steps, args.transformer_lr
         )
+    elif args.opt == 'kaldi':    # add by wangzhichao --2020.04.07
+        from espnet.nets.pytorch_backend.transformer.optimizer import get_kaldi_opt
+        # TODO(wangzhichao): auto compute total_steps
+        optimizer = get_kaldi_opt(
+            model, args.initial_learning_rate, args.final_learning_rate, args.total_steps)
     else:
         raise NotImplementedError("unknown optimizer: " + args.opt)
 

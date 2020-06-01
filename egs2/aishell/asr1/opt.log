@@ -1,0 +1,170 @@
+log_level: INFO
+dry_run: false
+iterator_type: sequence
+output_dir: null
+seed: 0
+num_workers: 1
+num_att_plot: 3
+dist_backend: nccl
+dist_init_method: env://
+dist_world_size: null
+dist_rank: null
+local_rank: null
+dist_master_addr: null
+dist_master_port: null
+dist_launcher: null
+multiprocessing_distributed: false
+cudnn_enabled: true
+cudnn_benchmark: false
+cudnn_deterministic: true
+collect_stats: false
+write_collected_feats: false
+max_epoch: 40
+patience: null
+val_scheduler_criterion:
+- valid
+- loss
+early_stopping_criterion:
+- valid
+- loss
+- min
+best_model_criterion:
+-   - train
+    - loss
+    - min
+-   - valid
+    - loss
+    - min
+-   - train
+    - acc
+    - max
+-   - valid
+    - acc
+    - max
+keep_nbest_models: 10
+grad_clip: 5.0
+grad_noise: false
+accum_grad: 1
+no_forward_run: false
+resume: false
+train_dtype: float32
+log_interval: null
+pretrain_path: []
+pretrain_key: []
+num_iters_per_epoch: null
+batch_size: 20
+valid_batch_size: null
+batch_bins: 1000000
+valid_batch_bins: null
+train_shape_file: []
+valid_shape_file: []
+batch_type: folded
+valid_batch_type: null
+fold_length: []
+sort_in_batch: descending
+sort_batch: descending
+chunk_length: 500
+chunk_shift_ratio: 0.5
+num_cache_chunks: 1024
+train_data_path_and_name_and_type: []
+valid_data_path_and_name_and_type: []
+allow_variable_data_keys: false
+max_cache_size: 0.0
+valid_max_cache_size: null
+optim: adadelta
+optim_conf:
+    lr: 1.0
+    rho: 0.9
+    eps: 1.0e-06
+    weight_decay: 0
+scheduler: null
+scheduler_conf: {}
+token_list: null
+init: null
+input_size: null
+ctc_conf:
+    dropout_rate: 0.0
+    ctc_type: builtin
+    reduce: true
+model_conf:
+    ctc_weight: 0.5
+    ignore_id: -1
+    lsm_weight: 0.0
+    length_normalized_loss: false
+    report_cer: true
+    report_wer: true
+    sym_space: <space>
+    sym_blank: <blank>
+use_preprocessor: false
+token_type: bpe
+bpemodel: null
+non_linguistic_symbols: null
+frontend: default
+frontend_conf:
+    fs: 16000
+    n_fft: 512
+    win_length: null
+    hop_length: 128
+    center: true
+    pad_mode: reflect
+    normalized: false
+    onesided: true
+    n_mels: 80
+    fmin: null
+    fmax: null
+    htk: false
+    norm: 1
+    frontend_conf:
+        use_wpe: false
+        wtype: blstmp
+        wlayers: 3
+        wunits: 300
+        wprojs: 320
+        wdropout_rate: 0.0
+        taps: 5
+        delay: 3
+        use_dnn_mask_for_wpe: true
+        use_beamformer: false
+        btype: blstmp
+        blayers: 3
+        bunits: 300
+        bprojs: 320
+        bnmask: 2
+        badim: 320
+        ref_channel: -1
+        bdropout_rate: 0.0
+specaug: null
+specaug_conf: {}
+normalize: utterance_mvn
+normalize_conf:
+    norm_means: true
+    norm_vars: false
+    eps: 1.0e-20
+encoder: rnn
+encoder_conf:
+    rnn_type: lstm
+    bidirectional: true
+    use_projection: true
+    num_layers: 4
+    hidden_size: 320
+    output_size: 320
+    dropout: 0.0
+    subsample:
+    - 2
+    - 2
+    - 1
+    - 1
+decoder: transformer
+decoder_conf:
+    attention_heads: 4
+    linear_units: 2048
+    num_blocks: 6
+    dropout_rate: 0.1
+    positional_dropout_rate: 0.1
+    self_attention_dropout_rate: 0.0
+    src_attention_dropout_rate: 0.0
+    input_layer: embed
+    use_output_layer: true
+    normalize_before: true
+    concat_after: false
+    tmp: false

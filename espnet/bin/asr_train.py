@@ -20,6 +20,7 @@ import torch
 
 from espnet.utils.cli_utils import strtobool
 from espnet.utils.training.batchfy import BATCH_COUNT_CHOICES
+from espnet.utils.training.batchfy import BATCH_SORT_KEY_CHOICES
 
 is_torch_1_2_plus = LooseVersion(torch.__version__) >= LooseVersion("1.2")
 
@@ -203,6 +204,12 @@ def get_parser(parser=None, required=True):
         help="How many epochs to use sortagrad for. 0 = deactivated, -1 = all epochs",
     )
     parser.add_argument(
+        '--batch-sort-key', 
+        default='input', 
+        choices=BATCH_SORT_KEY_CHOICES,
+        help='How to sort data before creating minibatches.',
+    )
+    parser.add_argument(
         "--batch-count",
         default="auto",
         choices=BATCH_COUNT_CHOICES,
@@ -277,7 +284,7 @@ def get_parser(parser=None, required=True):
         "--opt",
         default="adadelta",
         type=str,
-        choices=["adadelta", "adam", "noam"],
+        choices=["adadelta", "adam", "noam", "kaldi"],
         help="Optimizer",
     )
     parser.add_argument(
@@ -304,6 +311,24 @@ def get_parser(parser=None, required=True):
     )
     parser.add_argument(
         "--epochs", "-e", default=30, type=int, help="Maximum number of epochs"
+    )
+    parser.add_argument(
+        '--total-steps', 
+        default=100000, 
+        type=int,
+        help='Maximum steps to reach the final-learning-rate',
+    )
+    parser.add_argument(
+        '--initial-learning-rate', 
+        default=4e-4, 
+        type=float,
+        help='Initial value of learning rate',
+    )
+    parser.add_argument(
+        '--final-learning-rate', 
+        default=4e-5, 
+        type=float,
+        help='Final value of learning rate',
     )
     parser.add_argument(
         "--early-stop-criterion",

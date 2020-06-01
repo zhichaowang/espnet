@@ -1,11 +1,11 @@
 # If a Python interpreter is specified, then creates a virtualenv from it
 # PYTHON := /usr/bin/python3.7
-PYTHON :=
+PYTHON :=~/anaconda3/bin/python
 # The python version installed in the conda setup
 # NOTE(kan-bayashi): Use 3.7.3 to avoid sentencepiece installation error
 PYTHON_VERSION := 3.7.3
 CUPY_VERSION := 6.0.0
-CUDA_VERSION := 10.0
+CUDA_VERSION := 10.1
 # PyTorch version: 0.4.1, 1.0.0, 1.0.1, 1.1.0, 1.2.0, 1.3.0, 1.3.1, 1.4.0
 TH_VERSION := 1.0.1
 ifeq ($(shell expr $(strip $(subst .,,$(TH_VERSION))) \< 120), 1)
@@ -14,11 +14,11 @@ else
 INSTALL_WARPCTC :=
 endif
 # Use a prebuild Kaldi to omit the installation
-KALDI :=
+KALDI :=/nfsdata/kaldi-master
 WGET := wget --tries=3
 
 # Both Miniconda2/3 can install any Python versions
-CONDA_URL := https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+##CONDA_URL := https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
 # PyTorch>=1.0.0 requires gcc>=4.9 when buliding the extensions
 GCC_VERSION := $(shell gcc -dumpversion)
 

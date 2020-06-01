@@ -56,7 +56,7 @@ if [[ "$(hostname -d)" == clsp.jhu.edu ]]; then
     HOW2_FEATS=
 
 else
-    AISHELL=downloads
+    AISHELL=/nfsdata/database
     AN4=downloads
     WSJ0=
     WSJ1=

@@ -7,7 +7,7 @@
 """Optimizer module."""
 
 import torch
-
+import math
 
 class NoamOpt(object):
     """Optim wrapper that implements rate."""
@@ -73,3 +73,69 @@ def get_std_opt(model, d_model, warmup, factor):
     """Get standard NoamOpt."""
     base = torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9)
     return NoamOpt(d_model, factor, warmup, base)
+
+class KaldiOpt(object):
+    """Optim wrapper that implements kaldi-style learning rate."""
+
+    def __init__(self, init_lr, final_lr, total_steps, optimizer):
+        """Construct an NoamOpt object."""
+        self.optimizer = optimizer
+        self._step = 0
+        self.init_lr = init_lr
+        self.final_lr = final_lr
+        self.total_steps = total_steps
+        self._rate = 0
+
+    @property
+    def param_groups(self):
+        """Return param_groups."""
+        return self.optimizer.param_groups
+
+    def step(self):
+        """Update parameters and rate."""
+        self._step += 1
+        rate = self.rate()
+        if self._step % 10000 == 0:
+            print("Current step:{0},learning rate:{1}".format(self._step, rate))
+        for p in self.optimizer.param_groups:
+            p['lr'] = rate
+        self._rate = rate
+        self.optimizer.step()
+
+    def rate(self, step=None):
+        """Implement `lrate` above."""
+        if step is None:
+            step = self._step
+        if step >= self.total_steps:
+            return self.final_lr
+        else:
+            return self.init_lr * math.exp(step *  \
+                   math.log(float(self.final_lr) / self.init_lr) / self.total_steps)
+
+    def zero_grad(self):
+        """Reset gradient."""
+        self.optimizer.zero_grad()
+
+    def state_dict(self):
+        """Return state_dict."""
+        return {
+            "_step": self._step,
+            "init_lr": self.init_lr,
+            "final_lr": self.final_lr,
+            "total_steps": self.total_steps,
+            "_rate": self._rate,
+            "optimizer": self.optimizer.state_dict()
+        }
+
+    def load_state_dict(self, state_dict):
+        """Load state_dict."""
+        for key, value in state_dict.items():
+            if key == "optimizer":
+                self.optimizer.load_state_dict(state_dict["optimizer"])
+            else:
+                setattr(self, key, value)
+
+def get_kaldi_opt(model, init_lr, final_lr, total_steps):
+    """Get kaldi-style learning-rate strategy."""
+    base = torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9)
+    return KaldiOpt(init_lr, final_lr, total_steps, base)
