@@ -72,7 +72,7 @@ class CMVN(object):
             # If the feature has two or more dimensions
             if not (np.isscalar(count) or isinstance(count, (int, float))):
                 # The first is only used
-                count = count.flattten()[0]
+                count = count.flatten()[0]
 
             mean = stats[0, :-1] / count
             # V(x) = E(x^2) - (E(x))^2
@@ -107,10 +107,10 @@ class CMVN(object):
                 x = np.multiply(x, self.scale[spk])
 
         else:
-            if self.norm_means:
-                x = np.subtract(x, self.bias[spk])
             if self.norm_vars:
                 x = np.divide(x, self.scale[spk])
+            if self.norm_means:
+                x = np.subtract(x, self.bias[spk])
 
         return x
 

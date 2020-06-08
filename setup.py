@@ -1,21 +1,9 @@
 #!/usr/bin/env python3
 from distutils.version import LooseVersion
 import os
-import pip
 from setuptools import find_packages
 from setuptools import setup
-import sys
 
-
-if LooseVersion(sys.version) < LooseVersion("3.6"):
-    raise RuntimeError(
-        "ESPnet requires Python>=3.6, but your Python is {}".format(sys.version)
-    )
-if LooseVersion(pip.__version__) < LooseVersion("19"):
-    raise RuntimeError(
-        "pip>=19.0.0 is required, but your pip is {}. "
-        'Try again after "pip install -U pip"'.format(pip.__version__)
-    )
 
 requirements = {
     "install": [
@@ -39,7 +27,8 @@ requirements = {
         "resampy",
         "pysptk>=0.1.17",
         # Natural language processing related
-        "sentencepiece>=0.1.82",
+        # FIXME(kamo): Sentencepiece 0.1.90 breaks backwardcompatibility?
+        "sentencepiece<0.1.90,>=0.1.82",
         "nltk>=3.4.5",
         # File IO related
         "PyYAML>=5.1.2",
@@ -52,13 +41,13 @@ requirements = {
         "jaconv",
         "g2p_en",
         "nnmnkwii",
-        "espnet_tts_frontend@git+https://github.com/espnet/espnet_tts_frontend.git",
+        "espnet_tts_frontend",
         # ASR frontend related
         "museval>=0.2.1",
         "pystoi>=0.2.2",
         "nara_wpe>=0.0.5",
-        "torch_complex@git+https://github.com/kamo-naoyuki/pytorch_complex.git",
-        "pytorch_wpe@git+https://github.com/nttcslab-sp/dnn_wpe.git",
+        "torch_complex",
+        "pytorch_wpe",
     ],
     "setup": ["numpy", "pytest-runner"],
     "test": [
@@ -109,6 +98,7 @@ setup(
     author_email="shinjiw@ieee.org",
     description="ESPnet: end-to-end speech processing toolkit",
     long_description=open(os.path.join(dirname, "README.md"), encoding="utf-8").read(),
+    long_description_content_type="text/markdown",
     license="Apache Software License",
     packages=find_packages(include=["espnet*"]),
     # #448: "scripts" is inconvenient for developping because they are copied
@@ -117,11 +107,13 @@ setup(
     setup_requires=setup_requires,
     tests_require=tests_require,
     extras_require=extras_require,
+    python_requires=">=3.6.0",
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Science/Research",
         "Operating System :: POSIX :: Linux",

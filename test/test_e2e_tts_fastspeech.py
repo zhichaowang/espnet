@@ -28,15 +28,15 @@ from espnet.nets.pytorch_backend.nets_utils import pad_list
 def prepare_inputs(
     idim, odim, ilens, olens, spk_embed_dim=None, device=torch.device("cpu")
 ):
-    xs = [np.random.randint(0, idim, l) for l in ilens]
-    ys = [np.random.randn(l, odim) for l in olens]
+    xs = [np.random.randint(0, idim, lg) for lg in ilens]
+    ys = [np.random.randn(lg, odim) for lg in olens]
     ilens = torch.LongTensor(ilens).to(device)
     olens = torch.LongTensor(olens).to(device)
     xs = pad_list([torch.from_numpy(x).long() for x in xs], 0).to(device)
     ys = pad_list([torch.from_numpy(y).float() for y in ys], 0).to(device)
     labels = ys.new_zeros(ys.size(0), ys.size(1))
-    for i, l in enumerate(olens):
-        labels[i, l - 1 :] = 1
+    for i, lg in enumerate(olens):
+        labels[i, lg - 1 :] = 1
     batch = {
         "xs": xs,
         "ilens": ilens,
@@ -599,3 +599,32 @@ def test_duration_calculator():
     np.testing.assert_array_equal(
         ds.sum(dim=-1).cpu().numpy(), batch["olens"].cpu().numpy()
     )
+
+
+@pytest.mark.parametrize(
+    "alpha", [(1.0), (0.5), (2.0)],
+)
+def test_fastspeech_inference(alpha):
+    # make args
+    idim, odim = 10, 25
+    model_args = make_feedforward_transformer_args()
+
+    # setup batch
+    ilens = [10, 5]
+    olens = [20, 15]
+    batch = prepare_inputs(idim, odim, ilens, olens, model_args["spk_embed_dim"])
+
+    # define model
+    model = FeedForwardTransformer(idim, odim, Namespace(**model_args))
+
+    # test inference
+    inference_args = Namespace(**{"fastspeech_alpha": alpha})
+    model.eval()
+    with torch.no_grad():
+        if model_args["spk_embed_dim"] is None:
+            spemb = None
+        else:
+            spemb = batch["spembs"][0]
+        model.inference(
+            batch["xs"][0][: batch["ilens"][0]], inference_args, spemb=spemb,
+        )

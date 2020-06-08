@@ -831,6 +831,9 @@ def recog(args):
     assert isinstance(model, ASRInterface)
     model.recog_args = args
 
+    if args.streaming_mode and "transformer" in train_args.model_module:
+        raise NotImplementedError("streaming mode for transformer is not implemented")
+
     # read rnnlm
     if args.rnnlm:
         rnnlm_args = get_model_conf(args.rnnlm, args.rnnlm_conf)
@@ -1092,7 +1095,7 @@ def enhance(args):
         else args.preprocess_conf
     )
     if preprocess_conf is not None:
-        logging.info("Use preprocessing".format(preprocess_conf))
+        logging.info(f"Use preprocessing: {preprocess_conf}")
         transform = Transformation(preprocess_conf)
     else:
         transform = None
