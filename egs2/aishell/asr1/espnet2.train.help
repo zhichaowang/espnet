@@ -1,0 +1,402 @@
+usage: asr_train.py [-h] [--config CONFIG] [--print_config]
+                    [--log_level {ERROR,WARNING,INFO,DEBUG,NOTSET}]
+                    [--dry_run DRY_RUN] [--iterator_type {sequence,none}]
+                    [--output_dir OUTPUT_DIR] [--ngpu NGPU] [--seed SEED]
+                    [--num_workers NUM_WORKERS] [--num_att_plot NUM_ATT_PLOT]
+                    [--dist_backend DIST_BACKEND]
+                    [--dist_init_method DIST_INIT_METHOD]
+                    [--dist_world_size DIST_WORLD_SIZE]
+                    [--dist_rank DIST_RANK] [--local_rank LOCAL_RANK]
+                    [--dist_master_addr DIST_MASTER_ADDR]
+                    [--dist_master_port DIST_MASTER_PORT]
+                    [--dist_launcher {slurm,mpi,None}]
+                    [--multiprocessing_distributed MULTIPROCESSING_DISTRIBUTED]
+                    [--cudnn_enabled CUDNN_ENABLED]
+                    [--cudnn_benchmark CUDNN_BENCHMARK]
+                    [--cudnn_deterministic CUDNN_DETERMINISTIC]
+                    [--collect_stats COLLECT_STATS]
+                    [--write_collected_feats WRITE_COLLECTED_FEATS]
+                    [--max_epoch MAX_EPOCH] [--patience PATIENCE]
+                    [--val_scheduler_criterion VAL_SCHEDULER_CRITERION VAL_SCHEDULER_CRITERION]
+                    [--early_stopping_criterion EARLY_STOPPING_CRITERION EARLY_STOPPING_CRITERION EARLY_STOPPING_CRITERION]
+                    [--best_model_criterion BEST_MODEL_CRITERION [BEST_MODEL_CRITERION ...]]
+                    [--keep_nbest_models KEEP_NBEST_MODELS]
+                    [--grad_clip GRAD_CLIP] [--grad_noise GRAD_NOISE]
+                    [--accum_grad ACCUM_GRAD]
+                    [--no_forward_run NO_FORWARD_RUN] [--resume RESUME]
+                    [--train_dtype {float16,float32,float64,O0,O1,O2,O3}]
+                    [--log_interval LOG_INTERVAL]
+                    [--pretrain_path [PRETRAIN_PATH [PRETRAIN_PATH ...]]]
+                    [--pretrain_key [PRETRAIN_KEY [PRETRAIN_KEY ...]]]
+                    [--num_iters_per_epoch NUM_ITERS_PER_EPOCH]
+                    [--batch_size BATCH_SIZE]
+                    [--valid_batch_size VALID_BATCH_SIZE]
+                    [--batch_bins BATCH_BINS]
+                    [--valid_batch_bins VALID_BATCH_BINS]
+                    [--train_shape_file TRAIN_SHAPE_FILE]
+                    [--valid_shape_file VALID_SHAPE_FILE]
+                    [--batch_type {unsorted,sorted,folded,length,numel}]
+                    [--valid_batch_type {unsorted,sorted,folded,length,numel,None}]
+                    [--fold_length FOLD_LENGTH]
+                    [--sort_in_batch {descending,ascending}]
+                    [--sort_batch {descending,ascending}]
+                    [--chunk_length CHUNK_LENGTH]
+                    [--chunk_shift_ratio CHUNK_SHIFT_RATIO]
+                    [--num_cache_chunks NUM_CACHE_CHUNKS]
+                    [--train_data_path_and_name_and_type TRAIN_DATA_PATH_AND_NAME_AND_TYPE]
+                    [--valid_data_path_and_name_and_type VALID_DATA_PATH_AND_NAME_AND_TYPE]
+                    [--allow_variable_data_keys ALLOW_VARIABLE_DATA_KEYS]
+                    [--max_cache_size MAX_CACHE_SIZE]
+                    [--valid_max_cache_size VALID_MAX_CACHE_SIZE]
+                    [--optim {adam,sgd,adadelta,adagrad,adamax,asgd,lbfgs,rmsprop,rprop,adamw}]
+                    [--optim_conf OPTIM_CONF]
+                    [--scheduler {reducelronplateau,lambdalr,steplr,multisteplr,exponentiallr,cosineannealinglr,noamlr,warmuplr,cycliclr,onecyclelr,cosineannealingwarmrestarts,None}]
+                    [--scheduler_conf SCHEDULER_CONF]
+                    [--token_list TOKEN_LIST]
+                    [--init {chainer,xavier_uniform,xavier_normal,kaiming_uniform,kaiming_normal,None}]
+                    [--input_size INPUT_SIZE] [--ctc_conf CTC_CONF]
+                    [--model_conf MODEL_CONF]
+                    [--use_preprocessor USE_PREPROCESSOR]
+                    [--token_type {bpe,char,word}] [--bpemodel BPEMODEL]
+                    [--non_linguistic_symbols NON_LINGUISTIC_SYMBOLS]
+                    [--frontend {default}] [--frontend_conf FRONTEND_CONF]
+                    [--specaug {specaug,None}] [--specaug_conf SPECAUG_CONF]
+                    [--normalize {global_mvn,utterance_mvn,None}]
+                    [--normalize_conf NORMALIZE_CONF]
+                    [--encoder {transformer,vgg_rnn,rnn}]
+                    [--encoder_conf ENCODER_CONF]
+                    [--decoder {transformer,rnn}]
+                    [--decoder_conf DECODER_CONF]
+
+base parser Args that start with '--' (eg. --print_config) can also be set in a config file (specified via --config). The config file uses YAML syntax and must represent a YAML 'mapping' (for details, see http://learn.getgrav.org/advanced/yaml). If an arg is specified in more than one place, then commandline values override config file values which override defaults.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --non_linguistic_symbols NON_LINGUISTIC_SYMBOLS
+                        non_linguistic_symbols file path (default: None)
+
+Common configuration:
+  --config CONFIG       config file path (default: None)
+  --print_config        Print the config file and exit (default: False)
+  --log_level {ERROR,WARNING,INFO,DEBUG,NOTSET}
+                        The verbose level of logging (default: INFO)
+  --dry_run DRY_RUN     Perform process without training (default: False)
+  --iterator_type {sequence,none}
+                        Specify iterator type (default: sequence)
+  --output_dir OUTPUT_DIR
+  --ngpu NGPU           The number of gpus. 0 indicates CPU mode (default: 0)
+  --seed SEED           Random seed (default: 0)
+  --num_workers NUM_WORKERS
+                        The number of workers used for DataLoader (default: 1)
+  --num_att_plot NUM_ATT_PLOT
+                        The number images to plot the outputs from attention. This option makes sense only when attention-based model (default: 3)
+
+distributed training related:
+  --dist_backend DIST_BACKEND
+                        distributed backend (default: nccl)
+  --dist_init_method DIST_INIT_METHOD
+                        if init_method="env://", env values of "MASTER_PORT", "MASTER_ADDR", "WORLD_SIZE", and "RANK" are referred. (default: env://)
+  --dist_world_size DIST_WORLD_SIZE
+                        number of nodes for distributed training (default: None)
+  --dist_rank DIST_RANK
+                        node rank for distributed training (default: None)
+  --local_rank LOCAL_RANK
+                        local rank for distributed training. This option is used if --multiprocessing_distributed=false (default: None)
+  --dist_master_addr DIST_MASTER_ADDR
+                        The master address for distributed training. This value is used when dist_init_method == 'env://' (default: None)
+  --dist_master_port DIST_MASTER_PORT
+                        The master port for distributed trainingThis value is used when dist_init_method == 'env://' (default: None)
+  --dist_launcher {slurm,mpi,None}
+                        The launcher type for distributed training (default: None)
+  --multiprocessing_distributed MULTIPROCESSING_DISTRIBUTED
+                        Use multi-processing distributed training to launch N processes per node, which has N GPUs. This is the fastest way to use PyTorch for either single node or multi node data parallel training (default: False)
+
+cudnn mode related:
+  --cudnn_enabled CUDNN_ENABLED
+                        Enable CUDNN (default: True)
+  --cudnn_benchmark CUDNN_BENCHMARK
+                        Enable cudnn-benchmark mode (default: False)
+  --cudnn_deterministic CUDNN_DETERMINISTIC
+                        Enable cudnn-deterministic mode (default: True)
+
+collect stats mode related:
+  --collect_stats COLLECT_STATS
+                        Perform on "collect stats" mode (default: False)
+  --write_collected_feats WRITE_COLLECTED_FEATS
+                        Write the output features from the model when "collect stats" mode (default: False)
+
+Trainer related:
+  --max_epoch MAX_EPOCH
+                        The maximum number epoch to train (default: 40)
+  --patience PATIENCE   Number of epochs to wait without improvement before stopping the training (default: None)
+  --val_scheduler_criterion VAL_SCHEDULER_CRITERION VAL_SCHEDULER_CRITERION
+                        The criterion used for the value given to the lr scheduler. Give a pair referring the phase, "train" or "valid",and the criterion name. The mode specifying "min" or "max" can be changed by --scheduler_conf (default: ('valid', 'loss'))
+  --early_stopping_criterion EARLY_STOPPING_CRITERION EARLY_STOPPING_CRITERION EARLY_STOPPING_CRITERION
+                        The criterion used for judging of early stopping. Give a pair referring the phase, "train" or "valid",the criterion name and the mode, "min" or "max", e.g. "acc,max". (default: ('valid', 'loss', 'min'))
+  --best_model_criterion BEST_MODEL_CRITERION [BEST_MODEL_CRITERION ...]
+                        The criterion used for judging of the best model. Give a pair referring the phase, "train" or "valid",the criterion name, and the mode, "min" or "max", e.g. "acc,max". (default: [('train', 'loss', 'min'), ('valid', 'loss', 'min'), ('train', 'acc', 'max'), ('valid', 'acc', 'max')])
+  --keep_nbest_models KEEP_NBEST_MODELS
+                        Remove previous snapshots excluding the n-best scored epochs (default: 10)
+  --grad_clip GRAD_CLIP
+                        Gradient norm threshold to clip (default: 5.0)
+  --grad_noise GRAD_NOISE
+                        The flag to switch to use noise injection to gradients during training (default: False)
+  --accum_grad ACCUM_GRAD
+                        The number of gradient accumulation (default: 1)
+  --no_forward_run NO_FORWARD_RUN
+                        Just only iterating data loading without model forwarding and training (default: False)
+  --resume RESUME       Enable resuming if checkpoint is existing (default: False)
+  --train_dtype {float16,float32,float64,O0,O1,O2,O3}
+                        Data type for training. O0,O1,.. flags require apex. See https://nvidia.github.io/apex/amp.html#opt-levels (default: float32)
+  --log_interval LOG_INTERVAL
+                        Show the logs every the number iterations in each epochs at the training phase. If None is given, it is decided according the number of training samples automatically . (default: None)
+
+Pretraining model related:
+  --pretrain_path [PRETRAIN_PATH [PRETRAIN_PATH ...]]
+  --pretrain_key [PRETRAIN_KEY [PRETRAIN_KEY ...]]
+
+BatchSampler related:
+  --num_iters_per_epoch NUM_ITERS_PER_EPOCH
+                        Restrict the number of iterations for training per epoch (default: None)
+  --batch_size BATCH_SIZE
+                        The mini-batch size used for training. Used if batch_type='unsorted', 'sorted', or 'folded'. (default: 20)
+  --valid_batch_size VALID_BATCH_SIZE
+                        If not given, the value of --batch_size is used (default: None)
+  --batch_bins BATCH_BINS
+                        The number of batch bins. Used if batch_type='length' or 'numel' (default: 1000000)
+  --valid_batch_bins VALID_BATCH_BINS
+                        If not given, the value of --batch_bins is used (default: None)
+  --train_shape_file TRAIN_SHAPE_FILE
+  --valid_shape_file VALID_SHAPE_FILE
+
+Sequence iterator related:
+  --batch_type {unsorted,sorted,folded,length,numel}
+                        "unsorted":
+                        UnsortedBatchSampler has nothing in paticular feature and just creates mini-batches which has constant batch_size. This sampler doesn't require any length information for each feature. 'key_file' is just a text file which describes each sample name.
+                        
+                            utterance_id_a
+                            utterance_id_b
+                            utterance_id_c
+                        
+                        The fist column is referred, so 'shape file' can be used, too.
+                        
+                            utterance_id_a 100,80
+                            utterance_id_b 400,80
+                            utterance_id_c 512,80
+                        
+                        "sorted":
+                        SortedBatchSampler sorts samples by the length of the first input  in order to make each sample in a mini-batch has close length. This sampler requires a text file which describes the length for each sample 
+                        
+                            utterance_id_a 1000
+                            utterance_id_b 1453
+                            utterance_id_c 1241
+                        
+                        The first element of feature dimensions is referred, so 'shape_file' can be also used.
+                        
+                            utterance_id_a 1000,80
+                            utterance_id_b 1453,80
+                            utterance_id_c 1241,80
+                        
+                        "folded":
+                        FoldedBatchSampler supports variable batch_size. The batch_size is decided by
+                            batch_size = base_batch_size // (L // fold_length)
+                        L is referred to the largest length of samples in the mini-batch. This samples requires length information as same as SortedBatchSampler
+                        
+                        "length":
+                        LengthBatchSampler supports variable batch_size. This sampler makes mini-batches which have same number of 'bins' as possible counting by the total lengths of each feature in the mini-batch. This sampler requires a text file which describes the length for each sample. 
+                        
+                            utterance_id_a 1000
+                            utterance_id_b 1453
+                            utterance_id_c 1241
+                        
+                        The first element of feature dimensions is referred, so 'shape_file' can be also used.
+                        
+                            utterance_id_a 1000,80
+                            utterance_id_b 1453,80
+                            utterance_id_c 1241,80
+                        
+                        "numel":
+                        NumElementsBatchSampler supports variable batch_size. Just like LengthBatchSampler, this sampler makes mini-batches which have same number of 'bins' as possible counting by the total number of elements of each feature instead of the length. Thus this sampler requires the full information of the dimension of the features. 
+                        
+                            utterance_id_a 1000,80
+                            utterance_id_b 1453,80
+                            utterance_id_c 1241,80
+                        
+                         (default: folded)
+  --valid_batch_type {unsorted,sorted,folded,length,numel,None}
+                        If not given, the value of --batch_type is used (default: None)
+  --fold_length FOLD_LENGTH
+  --sort_in_batch {descending,ascending}
+                        Sort the samples in each mini-batches by the sample lengths. To enable this, "shape_file" must have the length information. (default: descending)
+  --sort_batch {descending,ascending}
+                        Sort mini-batches by the sample lengths (default: descending)
+
+Chunk iterator related:
+  --chunk_length CHUNK_LENGTH
+                        Specify chunk length. e.g. '300', '300,400,500', or '300-400'.If multiple numbers separated by command are given, one of them is selected randomly for each samples. If two numbers are given with '-', it indicates the range of the choices. Note that if the sequence length is shorter than the all chunk_lengths, the sample is discarded.  (default: 500)
+  --chunk_shift_ratio CHUNK_SHIFT_RATIO
+                        Specify the shift width of chunks. If it's less than 1, allows the overlapping and if bigger than 1, there are some gaps between each chunk. (default: 0.5)
+  --num_cache_chunks NUM_CACHE_CHUNKS
+                        Shuffle in the specified number of chunks and generate mini-batches More larger this value, more randomness can be obtained. (default: 1024)
+
+Dataset related:
+  --train_data_path_and_name_and_type TRAIN_DATA_PATH_AND_NAME_AND_TYPE
+                        Give three words splitted by comma. It's used for the training data. e.g. '--train_data_path_and_name_and_type some/path/a.scp,foo,sound'. The first value, some/path/a.scp, indicates the file path, and the second, foo, is the key name used for the mini-batch data, and the last, sound, decides the file type. This option is repeatable, so you can input any number of features for your task. Supported file types are as follows:
+                        
+                        "sound":
+                        Audio format types which supported by sndfile wav, flac, etc.
+                        
+                           utterance_id_a a.wav
+                           utterance_id_b b.wav
+                           ...
+                        
+                        "pipe_wav":
+                        Kaldi wav.scp file. If the file doesn't include a pipe, '|' for each line, use 'sound' instead.:
+                        
+                           utterance_id_a cat a.wav |
+                           utterance_id_b cat b.wav |
+                           ...
+                        
+                        "kaldi_ark":
+                        Kaldi-ark file type.
+                        
+                           utterance_id_A /some/where/a.ark:123
+                           utterance_id_B /some/where/a.ark:456
+                           ...
+                        
+                        "npy":
+                        Npy file format.
+                        
+                           utterance_id_A /some/where/a.npy
+                           utterance_id_B /some/where/b.npy
+                           ...
+                        
+                        "text_int":
+                        A text file in which is written a sequence of interger numbers separated by space.
+                        
+                           utterance_id_A 12 0 1 3
+                           utterance_id_B 3 3 1
+                           ...
+                        
+                        "csv_int":
+                        A text file in which is written a sequence of interger numbers separated by comma.
+                        
+                           utterance_id_A 100,80
+                           utterance_id_B 143,80
+                           ...
+                        
+                        "text_float":
+                        A text file in which is written a sequence of float numbers separated by space.
+                        
+                           utterance_id_A 12. 3.1 3.4 4.4
+                           utterance_id_B 3. 3.12 1.1
+                           ...
+                        
+                        "csv_float":
+                        A text file in which is written a sequence of float numbers separated by comma.
+                        
+                           utterance_id_A 12.,3.1,3.4,4.4
+                           utterance_id_B 3.,3.12,1.1
+                           ...
+                        
+                        "text":
+                        Return text as is. The text must be converted to ndarray by 'preprocess'.
+                        
+                           utterance_id_A hello world
+                           utterance_id_B foo bar
+                           ...
+                        
+                        "hdf5":
+                        A HDF5 file which contains arrays at the first level or the second level.
+                        
+                           1-level HDF5 file example.
+                           >>> f = h5py.File('file.h5')
+                           >>> array1 = f['utterance_id_A']
+                           >>> array2 = f['utterance_id_B']
+                        
+                           2-level HDF5 file example.
+                           >>> f = h5py.File('file.h5')
+                           >>> values = f['utterance_id_A']
+                           >>> input_array = values['input']
+                           >>> target_array = values['target']
+                        
+                        "rand_float":
+                        Generate random float-ndarray which has the given shapes in the file.
+                        
+                           utterance_id_A 3,4
+                           utterance_id_B 10,4
+                           ...
+                        
+                        "rand_int_\d+_\d+":
+                        e.g. 'rand_int_0_10'. Generate random int-ndarray which has the given shapes in the path. Give the lower and upper value by the file type. e.g. rand_int_0_10 -> Generate integers from 0 to 10.
+                        
+                           utterance_id_A 3,4
+                           utterance_id_B 10,4
+                           ...
+                        
+                        "imagefolder_\d+x\d+":
+                        e.g. 'imagefolder_32x32'. Using torchvision.datasets.ImageFolder.
+                        
+                        "mnist_train_\d+x\d+":
+                        e.g. 'mnist_train_32x32'. MNIST train data
+                        
+                        "mnist_test_\d+x\d+":
+                        e.g. 'mnist_test_32x32'. MNIST test data
+                        
+                         (default: [])
+  --valid_data_path_and_name_and_type VALID_DATA_PATH_AND_NAME_AND_TYPE
+  --allow_variable_data_keys ALLOW_VARIABLE_DATA_KEYS
+                        Allow the arbitrary keys for mini-batch with ignoring the task requirements (default: False)
+  --max_cache_size MAX_CACHE_SIZE
+                        The maximum cache size for data loader. e.g. 10MB, 20GB. (default: 0.0)
+  --valid_max_cache_size VALID_MAX_CACHE_SIZE
+                        The maximum cache size for validation data loader. e.g. 10MB, 20GB. If None, the 5 percent size of --max_cache_size (default: None)
+
+Optimizer related:
+  --optim {adam,sgd,adadelta,adagrad,adamax,asgd,lbfgs,rmsprop,rprop,adamw}
+                        The optimizer type (default: adadelta)
+  --optim_conf OPTIM_CONF
+                        The keyword arguments for optimizer (default: {})
+  --scheduler {reducelronplateau,lambdalr,steplr,multisteplr,exponentiallr,cosineannealinglr,noamlr,warmuplr,cycliclr,onecyclelr,cosineannealingwarmrestarts,None}
+                        The lr scheduler type (default: None)
+  --scheduler_conf SCHEDULER_CONF
+                        The keyword arguments for lr scheduler (default: {})
+
+  Task related
+
+  --token_list TOKEN_LIST
+                        A text mapping int-id to token (default: None)
+  --init {chainer,xavier_uniform,xavier_normal,kaiming_uniform,kaiming_normal,None}
+                        The initialization method (default: None)
+  --input_size INPUT_SIZE
+                        The number of input dimension of the feature (default: None)
+  --ctc_conf CTC_CONF   The keyword arguments for CTC class. (default: {'dropout_rate': 0.0, 'ctc_type': 'builtin', 'reduce': True})
+  --model_conf MODEL_CONF
+                        The keyword arguments for model class. (default: {'ctc_weight': 0.5, 'ignore_id': -1, 'lsm_weight': 0.0, 'length_normalized_loss': False, 'report_cer': True, 'report_wer': True, 'sym_space': '<space>', 'sym_blank': '<blank>'})
+
+  Preprocess related
+
+  --use_preprocessor USE_PREPROCESSOR
+                        Apply preprocessing to data or not (default: False)
+  --token_type {bpe,char,word}
+                        The text will be tokenized in the specified level token (default: bpe)
+  --bpemodel BPEMODEL   The model file of sentencepiece (default: None)
+  --frontend {default}  The frontend type (default: default)
+  --frontend_conf FRONTEND_CONF
+                        The keyword arguments for frontend (default: {})
+  --specaug {specaug,None}
+                        The specaug type (default: None)
+  --specaug_conf SPECAUG_CONF
+                        The keyword arguments for specaug (default: {})
+  --normalize {global_mvn,utterance_mvn,None}
+                        The normalize type (default: utterance_mvn)
+  --normalize_conf NORMALIZE_CONF
+                        The keyword arguments for normalize (default: {})
+  --encoder {transformer,vgg_rnn,rnn}
+                        The encoder type (default: rnn)
+  --encoder_conf ENCODER_CONF
+                        The keyword arguments for encoder (default: {})
+  --decoder {transformer,rnn}
+                        The decoder type (default: rnn)
+  --decoder_conf DECODER_CONF
+                        The keyword arguments for decoder (default: {})

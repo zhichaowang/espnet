@@ -37,19 +37,22 @@ class CharTokenizer(AbsTokenizer):
 
     def text2tokens(self, line: str) -> List[str]:
         tokens = []
-        while len(line) != 0:
-            for w in self.non_linguistic_symbols:
-                if line.startswith(w):
-                    if not self.remove_non_linguistic_symbols:
-                        tokens.append(line[: len(w)])
-                    line = line[len(w) :]
-                    break
-            else:
-                t = line[0]
-                if t == " ":
-                    t = "<space>"
-                tokens.append(t)
-                line = line[1:]
+#        while len(line) != 0:
+#            for w in self.non_linguistic_symbols:
+#                if line.startswith(w):
+#                    if not self.remove_non_linguistic_symbols:
+#                        tokens.append(line[: len(w)])
+#                    line = line[len(w) :]
+#                    break
+#            else:
+#                t = line[0]
+#                if t == " ":
+##                    t = "<space>"
+#                    line = line[1:]
+#                    continue
+#                tokens.append(t)
+#                line = line[1:]
+        tokens = line.split(" ")
         return tokens
 
     def tokens2text(self, tokens: Iterable[str]) -> str:

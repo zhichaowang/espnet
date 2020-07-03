@@ -10,7 +10,7 @@
 backend=pytorch
 stage=4        # start from 0 if you need to start from data preparation
 stop_stage=5
-ngpu=4        # number of gpus ("0" uses cpu, otherwise use gpu)
+ngpu=1         # number of gpus ("0" uses cpu, otherwise use gpu)
 debugmode=1
 dumpdir=dump   # directory to dump full features
 N=0            # number of minibatches to be used (mainly for debugging). "0" uses all minibatches.
@@ -34,7 +34,7 @@ recog_model=model.acc.best # set a model to be used for decoding: 'model.acc.bes
 n_average=10
 
 # exp tag
-tag="4GPU_batch_frame_torch1.4.0" # tag for managing experiments.
+tag="batch_frame_torch1.4.0_builtinCTC" # tag for managing experiments.
 
 . utils/parse_options.sh || exit 1;
 

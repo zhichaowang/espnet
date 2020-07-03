@@ -8,8 +8,8 @@
 
 # general configuration
 backend=pytorch
-stage=4        # start from 0 if you need to start from data preparation
-stop_stage=4
+stage=5        # start from 0 if you need to start from data preparation
+stop_stage=5
 ngpu=4        # number of gpus ("0" uses cpu, otherwise use gpu)
 debugmode=1
 dumpdir=dump   # directory to dump full features
@@ -46,8 +46,8 @@ set -o pipefail
 
 train_set=train_sogou_fbank_1wh_mix_nodev_nodup_LID
 train_dev=train_sogou_fbank_mix_dev_100h_LID
-#recog_set="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou testNewLong_sogou testmeeting_cat_agc-1218_sogou testreport_cat_agc_1-2m-1218_sogou testreport_cat_agc_2-4m-1218_sogou testreport_cat_agc_4-6m-1218_sogou"
-recog_set="test0918_sogou"
+recog_set="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou testNewLong_sogou testmeeting_cat_agc-1218_sogou testreport_cat_agc_1-2m-1218_sogou testreport_cat_agc_2-4m-1218_sogou testreport_cat_agc_4-6m-1218_sogou"
+#recog_set="test0918_sogou"
 
 if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
 
@@ -197,7 +197,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     echo "stage 5: Decoding"
     nj=40
 #    if [[ $(get_yaml.py ${train_config} model-module) = *transformer* ]]; then
-#	recog_model=model.last${n_average}.avg.best
+	recog_model=model.last${n_average}.avg.best
 #	average_checkpoints.py --backend ${backend} \
 #			       --snapshots ${expdir}/results/snapshot.iter.* \
 #			       --out ${expdir}/results/${recog_model} \
@@ -206,7 +206,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
 #    pids=() # initialize pids
     for rtask in ${recog_set}; do
 #    (
-        decode_dir=decode_${rtask}_$(basename ${decode_config%.*})_${lmtag}_LM0.2
+        decode_dir=decode_${rtask}_$(basename ${decode_config%.*})_${lmtag}_LM0.2_5best_builtinCTC
         feat_recog_dir=data/${rtask}
 
         # split data

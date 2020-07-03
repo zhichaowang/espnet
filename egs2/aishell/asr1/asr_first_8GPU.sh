@@ -24,11 +24,11 @@ SECONDS=0
 
 # General configuration
 stage=10          # Processes starts from the specified stage.
-stop_stage=12    # Processes is stopped at the specified stage.
-ngpu=4           # The number of gpus ("0" uses cpu, otherwise use gpu).
+stop_stage=13    # Processes is stopped at the specified stage.
+ngpu=8           # The number of gpus ("0" uses cpu, otherwise use gpu).
 num_nodes=1      # The number of nodes
 nj=32            # The number of parallel jobs.
-decode_nj=32     # The number of parallel jobs in decoding.
+decode_nj=40     # The number of parallel jobs in decoding.
 gpu_decode=false # Whether to perform gpu decoding.
 dumpdir=dump     # Directory to dump features.
 expdir=exp       # Directory to save experiments.
@@ -78,7 +78,8 @@ decode_config= # Config for decoding.
 decode_args=   # Arguments for decoding, e.g., "--lm_weight 0.1".
                # Note that it will overwrite args in decode config.
 decode_lm=valid.loss.best.pth       # Language modle path for decoding.
-decode_asr_model=valid.acc.best.pth # ASR model path for decoding.
+#decode_asr_model=valid.acc.best.pth # ASR model path for decoding.
+decode_asr_model=valid.acc.ave.pth # ASR model path for decoding.
                                     # e.g.
                                     # decode_asr_model=train.loss.best.pth
                                     # decode_asr_model=3epoch.pth
@@ -93,7 +94,7 @@ srctexts=      # Used for the training of BPE and LM and the creation of a vocab
 lm_dev_text=   # Text file path of language model development set.
 lm_test_text=  # Text file path of language model evaluation set.
 nlsyms_txt=none # Non-linguistic symbol list if existing.
-asr_speech_fold_length=800 # fold_length for speech data during ASR training
+asr_speech_fold_length=512 # fold_length for speech data during ASR training
 asr_text_fold_length=150   # fold_length for text data during ASR training
 lm_fold_length=150         # fold_length for LM training
 

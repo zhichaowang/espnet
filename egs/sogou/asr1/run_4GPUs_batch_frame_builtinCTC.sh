@@ -34,7 +34,7 @@ recog_model=model.acc.best # set a model to be used for decoding: 'model.acc.bes
 n_average=10
 
 # exp tag
-tag="4GPU_batch_frame_torch1.4.0" # tag for managing experiments.
+tag="4GPU_batch_frame_torch1.1.0_builtinCTC" # tag for managing experiments.
 
 . utils/parse_options.sh || exit 1;
 
@@ -176,6 +176,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
         asr_train.py \
         --config ${train_config} \
         --report-interval-iters 1000 \
+        --ctc_type builtin \
         --ngpu ${ngpu} \
         --backend ${backend} \
         --outdir ${expdir}/results \

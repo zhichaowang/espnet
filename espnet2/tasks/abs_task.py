@@ -1167,7 +1167,7 @@ class AbsTask(ABC):
                     reporter=reporter,
                     output_dir=output_dir,
                     best_model_criterion=args.best_model_criterion,
-                    nbest=args.keep_nbest_models,
+                    nbest=6,
                 )
 
     @classmethod
