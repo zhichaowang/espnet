@@ -4,7 +4,7 @@ encoder: transformer
 encoder_conf:
     output_size: 384    # dimension of attention
     attention_heads: 8
-    linear_units: 3072  # the number of units of position-wise feed forward
+    linear_units: 2560  # the number of units of position-wise feed forward
     num_blocks: 12      # the number of encoder blocks
     dropout_rate: 0.1
     positional_dropout_rate: 0.1
@@ -16,7 +16,7 @@ encoder_conf:
 decoder: transformer
 decoder_conf:
     attention_heads: 8
-    linear_units: 3072
+    linear_units: 2560
     num_blocks: 6
     dropout_rate: 0.1
     positional_dropout_rate: 0.1

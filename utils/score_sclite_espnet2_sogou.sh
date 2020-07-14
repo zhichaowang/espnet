@@ -60,8 +60,8 @@ if [ $num_spkrs -eq 1 ]; then
   sed -i "s/@@ //g" ${dir}/utt_tra
   sed -i "s/CH2EN //g" ${dir}/utt_tra
   sed -i "s/EN2CH //g" ${dir}/utt_tra
-  sed -i "s/<UNK> 2 //g" ${dir}/utt_tra
-  sed -i "s/<UNK> //g" ${dir}/utt_tra
+#  sed -i "s/<UNK> 2 //g" ${dir}/utt_tra
+#  sed -i "s/<UNK> //g" ${dir}/utt_tra
 
   paste -d" " ${dir}/utt_tra ${dir}/utt_id >${dir}/hyp.trn.tmp
   rm ${dir}/utt_tra ${dir}/utt_id

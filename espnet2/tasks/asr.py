@@ -57,7 +57,8 @@ normalize_choices = ClassChoices(
     "normalize",
     classes=dict(global_mvn=GlobalMVN, utterance_mvn=UtteranceMVN,),
     type_check=AbsNormalize,
-    default="utterance_mvn",
+#    default="utterance_mvn",
+    default=None,
     optional=True,
 )
 encoder_choices = ClassChoices(

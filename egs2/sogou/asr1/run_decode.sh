@@ -7,8 +7,8 @@ set -o pipefail
 
 train_set=train_sogou_fbank_1wh_mix_nodev_nodup_LID
 dev_set=train_sogou_fbank_1wh_mix_dev_110h
-#eval_sets="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou testmeeting_cat_agc-1218_sogou testreport_cat_agc_1-2m-1218_sogou testreport_cat_agc_2-4m-1218_sogou testreport_cat_agc_4-6m-1218_sogou testNewLong_sogou test0918_sogou"
-eval_sets="test0918_sogou"
+eval_sets="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou testmeeting_cat_agc-1218_sogou testreport_cat_agc_1-2m-1218_sogou testreport_cat_agc_2-4m-1218_sogou testreport_cat_agc_4-6m-1218_sogou testNewLong_sogou test0918_sogou"
+#eval_sets="test0918_sogou"
 #eval_sets="testmeeting_cat_agc-1218_sogou testreport_cat_agc_1-2m-1218_sogou testreport_cat_agc_2-4m-1218_sogou testreport_cat_agc_4-6m-1218_sogou test0918_sogou"
 
 asr_config=conf/train_asr_transformer_first_16GPU_accgrad1_1wh.yaml
