@@ -2,15 +2,16 @@ from collections import OrderedDict
 from typing import Optional
 
 import torch
-from espnet2.layers.stft import Stft
-from espnet2.enh.abs_enh import AbsEnhancement
-from espnet2.enh.funcs.dnn_beamformer import DNN_Beamformer
-from espnet2.enh.funcs.dnn_wpe import DNN_WPE
 from torch_complex.tensor import ComplexTensor
+
+from espnet2.enh.abs_enh import AbsEnhancement
+from espnet2.enh.layers.dnn_beamformer import DNN_Beamformer
+from espnet2.enh.layers.dnn_wpe import DNN_WPE
+from espnet2.layers.stft import Stft
 
 
 class BeamformerNet(AbsEnhancement):
-    """ TF Masking based beamformer
+    """TF Masking based beamformer
 
     """
 
@@ -18,6 +19,7 @@ class BeamformerNet(AbsEnhancement):
         self,
         num_spk: int = 1,
         normalize_input: bool = False,
+        mask_type: str = "IPM^2",
         # STFT options
         n_fft: int = 512,
         win_length: int = None,
@@ -50,6 +52,8 @@ class BeamformerNet(AbsEnhancement):
         bdropout_rate=0.0,
     ):
         super(BeamformerNet, self).__init__()
+
+        self.mask_type = mask_type
 
         self.num_spk = num_spk
         self.num_bin = n_fft // 2 + 1
@@ -113,7 +117,8 @@ class BeamformerNet(AbsEnhancement):
             self.beamformer = None
 
     def forward(self, input: torch.Tensor, ilens: torch.Tensor):
-        """
+        """Forward.
+
         Args:
             input (torch.Tensor): mixed speech [Batch, Nsample, Channel]
             ilens (torch.Tensor): input lengths [Batch]
@@ -188,7 +193,8 @@ class BeamformerNet(AbsEnhancement):
         return enhanced, flens, masks
 
     def forward_rawwav(self, input: torch.Tensor, ilens: torch.Tensor):
-        """
+        """Output with wavformes.
+
         Args:
             input (torch.Tensor): mixed speech [Batch, Nsample, Channel]
             ilens (torch.Tensor): input lengths [Batch]
