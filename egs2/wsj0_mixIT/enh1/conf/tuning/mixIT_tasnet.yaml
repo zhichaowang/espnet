@@ -1,10 +1,10 @@
 optim: adam
-log_interval: 50
+log_interval: 1
 num_att_plot: 0
 init: xavier_uniform
-max_epoch: 100
+max_epoch: 200
 batch_type: folded
-batch_size: 8
+batch_size: 16
 iterator_type: chunk
 chunk_length: 32000
 num_workers: 4
@@ -33,9 +33,9 @@ N_per_mixture: 2 # number of outputs for each mixture, 4 in paper
 M_per_MoM: 4 # double of N_per_mixture when MOM
 ratio_supervised: 0.2 # p supervised data for Semi-supervised training, See in Sec 3.3
 SNR_max: 30 # in Equation 2
+#bs_limit_per_gpu: 2
 enh: tasnet
 enh_conf:
-    fs: 8000
     N: 256
     L: 20
     B: 256
