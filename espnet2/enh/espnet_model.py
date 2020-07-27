@@ -1,6 +1,8 @@
 from functools import reduce
+from itertools import combinations
 from itertools import permutations
 from itertools import product
+import random
 from typing import Dict
 from typing import Optional
 from typing import Tuple
@@ -28,11 +30,20 @@ class ESPnetEnhancementModel_mixIT(AbsESPnetModel):
         self.enh_model = enh_model
         self.num_spk = enh_model.num_spk
         self.num_noise_type = getattr(self.enh_model, "num_noise_type", 1)
-        self.fs = enh_model.fs
         # get mask type for TF-domain models
         self.mask_type = getattr(self.enh_model, "mask_type", None)
         # for multi-channel signal
         self.ref_channel = getattr(self.enh_model, "ref_channel", -1)
+
+        # For mixIT setting
+        # self.sup_ratio= enh_model.sup_ratio
+        # self.unsup_1spk_ratio= enh_model.unsup_1spk_ratio
+        # self.unsup_2spk_ratio= enh_model.unsup_2spk_ratio
+        self.sup_ratio= 0.0
+        self.unsup_1spk_ratio= 0.5
+        self.unsup_2spk_ratio= 0.5
+        self.bs_limit = 4
+        assert self.sup_ratio+self.unsup_1spk_ratio+self.unsup_2spk_ratio==1
 
     def _create_mask_label(self, mix_spec, ref_spec, mask_type="IAM"):
         """
@@ -156,13 +167,17 @@ class ESPnetEnhancementModel_mixIT(AbsESPnetModel):
         speech_ref = speech_ref[:, :, : speech_lengths.max()]
         speech_mix = speech_mix[:, : speech_lengths.max()]
 
-        if batch_size>1: #only generate the MOM with more than 2 mixtures
-            mix_of_mixtures, mix_ref = self.get_mix_of_mixtures(uttids,speech_mix,speech_ref) # (Batch',T) (Batch',2,T)
+        sup_mixtures, unsup_1spk_mixtures, unsup_2spk_mixtures = self.uttids_split(uttids,speech_mix,speech_ref)
+
+        if len(unsup_1spk_mixtures) + len(unsup_2spk_mixtures) > 1: # there is 2 or more unsup mixtures
+            mix_of_mixtures, mix_ref = self.get_mix_of_mixtures_spk1or2(unsup_1spk_mixtures,unsup_2spk_mixtures,self.bs_limit) # (Batch',T) (Batch',2,T)
             if mix_of_mixtures is not None:
                 # print(mix_of_mixtures.shape,mix_ref.shape)
                 mix_speech_lengths = torch.ones(mix_of_mixtures.shape[0]).int() * speech_mix.shape[1]
             else:
                 print('No mix of mixtures generated.')
+        else:
+            mix_of_mixtures = None
 
         if not (isinstance(self.enh_model, TasNet) or isinstance(self.enh_model, DPRNN)):
             # prepare reference speech and reference spectrum
@@ -281,20 +296,29 @@ class ESPnetEnhancementModel_mixIT(AbsESPnetModel):
                 # only select one channel as the reference
                 speech_ref = speech_ref[..., self.ref_channel]
 
-            speech_pre, speech_lengths, *__ = self.enh_model.forward_rawwav(
-                speech_mix, speech_lengths
-            )
+            if sup_mixtures:
+                # print('sup mix:', sup_mixtures)
+                speech_mix = torch.stack([d[1] for d in sup_mixtures], dim=0)
+                speech_ref = torch.stack([d[2] for d in sup_mixtures], dim=0) # BS,2,T
+                # Add 2 more all-zero references to train the PIT loss.
+                speech_ref = torch.cat([speech_ref, 0 * speech_ref], dim=1) # BS,4,T for PIT loss
 
-            # speech_pre: list[(batch, sample)]
-            assert speech_pre[0].dim() == 2, speech_pre[0].dim()
-            speech_ref = torch.unbind(speech_ref, dim=1)
+                speech_pre, *__ = self.enh_model.forward_rawwav(
+                    speech_mix, None
+                )
 
-            # compute si-snr loss
-            si_snr_loss, perm = self._permutation_loss(
-                speech_ref, speech_pre, self.si_snr_loss_zeromean
-            )
-            si_snr = -si_snr_loss
-            loss = si_snr_loss
+                # speech_pre: list[(batch, sample)]
+                assert speech_pre[0].dim() == 2, speech_pre[0].dim()
+                speech_ref = torch.unbind(speech_ref, dim=1)
+
+                # compute si-snr loss
+                si_snr_loss, perm = self._permutation_loss(
+                    speech_ref, speech_pre, self.si_snr_loss_zeromean
+                )
+                si_snr = -si_snr_loss
+                sup_PIT_loss = si_snr_loss
+            else:
+                sup_PIT_loss = 0
 
             if mix_of_mixtures is not None:
                 speech_pre_MoM, speech_lengths, *__ = self.enh_model.forward_rawwav(
@@ -311,19 +335,136 @@ class ESPnetEnhancementModel_mixIT(AbsESPnetModel):
                 # sf.write('mom.wav',mix_of_mixtures[0].data.cpu().numpy(),8000)
                 # sf.write('pre0.wav',speech_pre_MoM[:,0].data.cpu().numpy().T,8000)
                 # print('si_MOM,per_Mom',si_snr_loss_MoM,perm_MoM)
-                stats = dict(loss=si_snr_loss_MoM.detach())
-                loss, stats, weight = force_gatherable((si_snr_loss_MoM, stats, batch_size), si_snr_loss_MoM.device)
+                unsup_mixIT_loss = si_snr_loss_MoM
             else:
-                # si_snr_loss_MoM= torch.zeros(1,requires_grad=True) + 1e-8
-                si_snr_loss_MoM= si_snr_loss
-                # si_snr_loss_MoM=si_snr_loss_MoM.to(mix_ref.device)
-                stats = dict(loss=si_snr_loss_MoM.detach())
-                loss, stats, weight = force_gatherable((si_snr_loss_MoM, stats, batch_size),speech_ref[0].device)
+                unsup_mixIT_loss = 0
+            loss = sup_PIT_loss + unsup_mixIT_loss
+            print('pit,mixIT:',sup_PIT_loss,unsup_mixIT_loss)
+            stats = dict(loss=loss.detach(),pit_loss=sup_PIT_loss.detach() if sup_PIT_loss != 0 else 0,
+                         mixIT_loss=unsup_mixIT_loss.detach() if unsup_mixIT_loss != 0 else 0)
+            print(stats)
+            # stats = dict(loss=loss.detach(),)
+            # force_gatherable: to-device and to-tensor if scalar for DataParallel
+            loss, stats, weight = force_gatherable((loss, stats, batch_size), speech_mix.device)
             return loss, stats, weight
 
-        # force_gatherable: to-device and to-tensor if scalar for DataParallel
-        loss, stats, weight = force_gatherable((loss, stats, batch_size), loss.device)
-        return loss, stats, weight
+    def uttids_split(self, uttids, speech_mix, speech_ref):
+        """ Split all the mixtures from WSJ0_2mix with uttids
+
+        Args:
+            speech_mix: (Batch, samples) or (Batch, samples, channels)
+            uttids: list : (Batch)
+            speech_ref: (Batch, num_speaker, samples)
+                        or (Batch, num_speaker, samples, channels)
+            speech_mix_lengths: (Batch,), default None for chunk interator,
+                            because the chunk-iterator does not have the
+                            speech_lengths returned. see in
+                            espnet2/iterators/chunk_iter_factory.py
+        """
+        # convert to percent range
+        self.sup_ratio*=100
+        self.unsup_1spk_ratio*=100
+        self.unsup_2spk_ratio*=100
+
+        speech_mix = speech_mix.unbind(dim=0) # list[ samples ]
+        speech_ref = speech_ref.unbind(dim=0) # list[ number_spk,samples]
+        sup_ratio, unsup_1spk, unsup_2spk = [], [], []
+        for uttid, mix, ref in zip(uttids,speech_mix,speech_ref):
+            # uttid example: '407_024_407a010z_1.0657_024o030v_-1.0657'
+            uttid_split_number= abs(float(uttid.split('_')[-1])*1e04) % 100 # [0~99]
+            if uttid_split_number < self.sup_ratio :
+                # print('sup utt:',uttid)
+                sup_ratio.append([uttid,mix,ref])
+            elif self.sup_ratio<=uttid_split_number<(self.sup_ratio+self.unsup_1spk_ratio) :
+                unsup_1spk.append([uttid,mix,ref])
+                # print('1spk utt:',uttid)
+            elif (self.sup_ratio + self.unsup_1spk_ratio)<= uttid_split_number < 100 :
+                unsup_2spk.append([uttid,mix,ref])
+                # print('2spk utt:', uttid)
+        return sup_ratio, unsup_1spk, unsup_2spk
+
+    @staticmethod
+    def get_mix_of_mixtures_spk1or2(unsup_1spk,unsup_2spk, bs_limit=True):
+        """
+        :param unsup_1spk: List[uttids,mix,ref]
+        :param unsup_2spk: List[uttids,mix,ref]
+        :return: mix_of_mixtures(Batch', T)
+                 mix_ref(Batch', 2, T)
+        """
+        # Choose one channel as the unsup 1spk mixture
+        if len(unsup_1spk):
+            uttids_1spk = [d[0] for d in unsup_1spk]
+            speech_mix_1spk = torch.stack([d[1] for d in unsup_1spk], dim=0)  # BS_1spk,T
+            speech_ref_1spk = torch.stack([d[2] for d in unsup_1spk], dim=0)  # BS_1spk,2,T
+            uttids_1spk_new = []
+            speech_mix_1spk_new=[]
+            speech_ref_1spk_new=[]
+            for id,mix,ref in zip(uttids_1spk,speech_mix_1spk,speech_ref_1spk):
+                spks = id.split('_')[:2]
+                chosen_idx=random.randint(0,1) # 0 or 1
+                chosen_spk=spks[chosen_idx]
+                uttids_1spk_new.append('{}_{}'.format(chosen_spk,chosen_spk)) # like '010_010'
+                speech_mix_1spk_new.append(ref[chosen_idx]) # list[T]
+                ref[1-chosen_idx]=0 # set another channel to zero
+                speech_ref_1spk_new.append(ref) # list[2,T]
+            uttids_1spk = uttids_1spk_new
+            speech_mix_1spk = torch.stack([d for d in speech_mix_1spk_new], dim=0)  # BS_1spk,T
+            speech_ref_1spk = torch.stack([d for d in speech_ref_1spk_new], dim=0)  # BS_1spk,2,T
+        else:
+            uttids_1spk = []
+            speech_mix_1spk = []
+            speech_ref_1spk = []
+
+        # import soundfile as sf
+        # sf.write('1spk_mix.wav',speech_mix_1spk_new[0].data.cpu().numpy(),8000)
+        # sf.write('1spk_ref.wav',speech_ref_1spk_new[0].data.cpu().numpy().T,8000)
+
+        if len(unsup_2spk):
+            # pack 2spk mixture
+            uttids_2spk = [d[0] for d in unsup_2spk]
+            speech_mix_2spk = torch.stack([d[1] for d in unsup_2spk], dim=0)  # BS_2spk,T
+            speech_ref_2spk = torch.stack([d[2] for d in unsup_2spk], dim=0)  # BS_2spk,2,T
+        else:
+            uttids_2spk = []
+            speech_mix_2spk = []
+            speech_ref_2spk = []
+
+        batch_size = len(unsup_1spk) + len(unsup_2spk)
+        uttids = uttids_1spk+ uttids_2spk
+        if (type(speech_mix_1spk) is not list) and (type(speech_mix_2spk) is not list):
+            # print('speech_mix:',speech_mix_1spk,speech_mix_2spk)
+            speech_mix = torch.cat([speech_mix_1spk,speech_mix_2spk], dim=0) # BS,T
+            speech_ref = torch.cat([speech_ref_1spk,speech_ref_2spk], dim=0) # BS,2,T
+        if (type(speech_mix_1spk) is not list) and (type(speech_mix_2spk) is list):
+            speech_mix = speech_mix_1spk # BS,T
+        if (type(speech_mix_1spk) is list) and (type(speech_mix_2spk) is not list):
+            speech_mix = speech_mix_2spk # BS,T
+
+        spks_list=[uttid.split('_')[:2] for uttid in uttids]
+        mix_of_mixtures_list=[]
+        mix_ref1,mix_ref2=[],[]
+        for p in combinations(range(batch_size),2):
+            spk1_list=spks_list[p[0]]
+            spk2_list=spks_list[p[1]]
+            same_spk_list = [x for x in spk1_list if x in spk2_list] # get same spk
+            if not same_spk_list: # if no same spk
+                # print('mix of mixtures', spk1_list, spk2_list)
+                mix_of_mixtures_tmp=speech_mix[p[0]]+speech_mix[p[1]]
+                mix_of_mixtures_list.append(mix_of_mixtures_tmp)
+                mix_ref1.append(speech_mix[p[0]])
+                mix_ref2.append(speech_mix[p[1]])
+        if not mix_of_mixtures_list: # no mix-of-mixtures generated sucessfully here
+            return None, None
+        mix_ref1 = torch.stack(mix_ref1, dim=0) # Batch', T
+        mix_ref2 = torch.stack(mix_ref2, dim=0) # Batch', T
+        mix_of_mixtures = torch.stack(mix_of_mixtures_list,dim=0)
+        mix_ref = torch.stack([mix_ref1,mix_ref2],dim=1)
+        if bs_limit:
+            #TODO(Jing): should be uniform sampling
+            # print('mix_ref:',mix_ref.shape)
+            return mix_of_mixtures[:bs_limit],mix_ref[:bs_limit]
+        else:
+            return mix_of_mixtures,mix_ref
 
     @staticmethod
     def get_mix_of_mixtures(uttids, speech_mix, speech_ref, bs_limit=True):
@@ -515,7 +656,7 @@ class ESPnetEnhancementModel_mixIT(AbsESPnetModel):
             :return:
             """
             first_row=torch.FloatTensor(permutation).to(ref.device)
-            mixing_matrix=torch.stack([first_row,1-first_row],dim=0).unsqueeze(0) # Binary matrix of [1,2,M]
+            mixing_matrix=torch.stack([first_row,1-first_row],dim=0).unsqueeze(0).expand(inf.shape[1],2,M) # Binary matrix of [batch',2,M]
             mixing_infs=torch.bmm(mixing_matrix,inf.transpose(0,1)) # [1,2,M]*[batch',M,T] -->[batch',2,T]
             # print('mix_matrix,mixing_infs',mixing_matrix.shape,mixing_infs.shape)
             return sum(
