@@ -408,6 +408,8 @@ def train(args):
         int(valid_json[utts[0]]["input"][i]["shape"][-1]) for i in range(args.num_encs)
     ]
     odim = int(valid_json[utts[0]]["output"][0]["shape"][-1])
+    if hasattr(args, "decoder_mode") and args.decoder_mode == "maskctc":
+        odim += 1  # for the <mask> token
     for i in range(args.num_encs):
         logging.info("stream{}: input dims : {}".format(i + 1, idim_list[i]))
     logging.info("#output dims: " + str(odim))
@@ -417,7 +419,7 @@ def train(args):
         assert args.mtlalpha == 1.0
         mtl_mode = "transducer"
         logging.info("Pure transducer mode")
-    if args.mtlalpha == 1.0:
+    elif args.mtlalpha == 1.0:
         mtl_mode = "ctc"
         logging.info("Pure CTC mode")
     elif args.mtlalpha == 0.0:
@@ -663,10 +665,13 @@ def train(args):
             CustomEvaluator(model, {"main": valid_iter}, reporter, device, args.ngpu)
         )
 
-    # Save attention weight each epoch
-    if args.num_save_attention > 0 and (
-        mtl_mode == "transducer" and getattr(args, "rnnt_mode", False) == "rnnt"
-    ):
+    # Save attention weight at each epoch
+    is_attn_plot = (
+        mtl_mode in ["att", "mtl"]
+        or "transformer" in args.model_module
+        or "conformer" in args.model_module
+    )
+    if args.num_save_attention > 0 and is_attn_plot:
         data = sorted(
             list(valid_json.items())[: args.num_save_attention],
             key=lambda x: int(x[1]["input"][0]["shape"][1]),
@@ -981,6 +986,10 @@ def recog(args):
                             for n in range(args.nbest):
                                 nbest_hyps[n]["yseq"].extend(hyps[n]["yseq"])
                                 nbest_hyps[n]["score"] += hyps[n]["score"]
+                elif hasattr(model, "decoder_mode") and model.decoder_mode == "maskctc":
+                    nbest_hyps = model.recognize_maskctc(
+                        feat, args, train_args.char_list
+                    )
                 else:
                     nbest_hyps = model.recognize(
                         feat, args, train_args.char_list, rnnlm
