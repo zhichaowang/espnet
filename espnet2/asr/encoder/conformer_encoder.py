@@ -9,9 +9,18 @@ import torch
 from typeguard import check_argument_types
 
 from espnet.nets.pytorch_backend.nets_utils import make_pad_mask
-from espnet.nets.pytorch_backend.transformer.attention import MultiHeadedAttention
-from espnet.nets.pytorch_backend.transformer.embedding import PositionalEncoding
-from espnet.nets.pytorch_backend.transformer.encoder_layer import EncoderLayer
+from espnet.nets.pytorch_backend.transformer.attention import (
+    MultiHeadedAttention,
+    RelPositionMultiHeadedAttention,
+)
+from espnet.nets.pytorch_backend.transformer.embedding import (
+    PositionalEncoding,
+    ScaledPositionalEncoding,
+    RelPositionalEncoding,
+)
+from espnet.nets.pytorch_backend.conformer.convolution import ConvolutionModule
+from espnet.nets.pytorch_backend.conformer.encoder_layer import EncoderLayer
+from espnet.nets.pytorch_backend.conformer.subsampling import Conv2dSubsampling
 from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
 from espnet.nets.pytorch_backend.transformer.multi_layer_conv import Conv1dLinear
 from espnet.nets.pytorch_backend.transformer.multi_layer_conv import MultiLayeredConv1d
@@ -19,12 +28,11 @@ from espnet.nets.pytorch_backend.transformer.positionwise_feed_forward import (
     PositionwiseFeedForward,  # noqa: H301
 )
 from espnet.nets.pytorch_backend.transformer.repeat import repeat
-from espnet.nets.pytorch_backend.transformer.subsampling import Conv2dSubsampling
 from espnet2.asr.encoder.abs_encoder import AbsEncoder
 
 
-class TransformerEncoder(AbsEncoder):
-    """Transformer encoder module.
+class ConformerEncoder(AbsEncoder):
+    """Conformer encoder module.
 
     Args:
         input_size: input dim
@@ -64,11 +72,26 @@ class TransformerEncoder(AbsEncoder):
         concat_after: bool = False,
         positionwise_layer_type: str = "linear",
         positionwise_conv_kernel_size: int = 1,
+        macaron_style=False,
+	pos_enc_layer_type="abs_pos",
+        selfattention_layer_type="selfattn",
+	use_cnn_module=False,
+	cnn_module_kernel=31,
         padding_idx: int = -1,
     ):
         assert check_argument_types()
         super().__init__()
         self._output_size = output_size
+
+        if pos_enc_layer_type == "abs_pos":
+            pos_enc_class = PositionalEncoding
+        elif pos_enc_layer_type == "scaled_abs_pos":
+            pos_enc_class = ScaledPositionalEncoding
+        elif pos_enc_layer_type == "rel_pos":
+            assert selfattention_layer_type == "rel_selfattn"
+            pos_enc_class = RelPositionalEncoding
+        else:
+            raise ValueError("unknown pos_enc_layer: " + pos_enc_layer_type)
 
         if input_layer == "linear":
             self.embed = torch.nn.Sequential(
@@ -79,8 +102,14 @@ class TransformerEncoder(AbsEncoder):
                 pos_enc_class(output_size, positional_dropout_rate),
             )
         elif input_layer == "conv2d":
-            self.embed = Conv2dSubsampling(input_size, output_size, dropout_rate)
-        elif input_layer == "embed":
+            self.embed = Conv2dSubsampling(
+                input_size, 
+                output_size,
+                pos_enc_class(output_size, positional_dropout_rate),
+            )
+	elif input_layer == "vgg2l":
+            self.embed = VGG2L(input_size, output_size)
+	elif input_layer == "embed":
             self.embed = torch.nn.Sequential(
                 torch.nn.Embedding(input_size, output_size, padding_idx=padding_idx),
                 pos_enc_class(output_size, positional_dropout_rate),
@@ -117,14 +146,34 @@ class TransformerEncoder(AbsEncoder):
             )
         else:
             raise NotImplementedError("Support only linear or conv1d.")
+        if selfattention_layer_type == "selfattn":
+            logging.info("encoder self-attention layer type = self-attention")
+            encoder_selfattn_layer = MultiHeadedAttention
+            encoder_selfattn_layer_args = (
+                attention_heads,
+                output_size,
+                attention_dropout_rate,
+            )
+        elif selfattention_layer_type == "rel_selfattn":
+            assert pos_enc_layer_type == "rel_pos"
+            encoder_selfattn_layer = RelPositionMultiHeadedAttention
+            encoder_selfattn_layer_args = (
+                attention_heads,
+                output_size,
+                attention_dropout_rate,
+            )
+        else:
+            raise ValueError("unknown encoder_attn_layer: " + selfattention_layer_type)
+        convolution_layer = ConvolutionModule
+        convolution_layer_args = (output_size, cnn_module_kernel)
         self.encoders = repeat(
             num_blocks,
             lambda lnum: EncoderLayer(
                 output_size,
-                MultiHeadedAttention(
-                    attention_heads, output_size, attention_dropout_rate
-                ),
+                encoder_selfattn_layer(*encoder_selfattn_layer_args),
                 positionwise_layer(*positionwise_layer_args),
+                positionwise_layer(*positionwise_layer_args) if macaron_style else None,
+                convolution_layer(*convolution_layer_args) if use_cnn_module else None,
                 dropout_rate,
                 normalize_before,
                 concat_after,
@@ -153,11 +202,13 @@ class TransformerEncoder(AbsEncoder):
         """
         masks = (~make_pad_mask(ilens)[:, None, :]).to(xs_pad.device)
 
-        if isinstance(self.embed, Conv2dSubsampling):
+        if isinstance(self.embed, (Conv2dSubsampling, VGG2L)):
             xs_pad, masks = self.embed(xs_pad, masks)
         else:
             xs_pad = self.embed(xs_pad)
         xs_pad, masks = self.encoders(xs_pad, masks)
+        if isinstance(xs_pad, tuple):
+            xs_pad = xs_pad[0]
         if self.normalize_before:
             xs_pad = self.after_norm(xs_pad)
 
