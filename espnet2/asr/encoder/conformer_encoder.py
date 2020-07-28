@@ -18,6 +18,7 @@ from espnet.nets.pytorch_backend.transformer.embedding import (
     ScaledPositionalEncoding,
     RelPositionalEncoding,
 )
+from espnet.nets.pytorch_backend.transducer.vgg import VGG2L
 from espnet.nets.pytorch_backend.conformer.convolution import ConvolutionModule
 from espnet.nets.pytorch_backend.conformer.encoder_layer import EncoderLayer
 from espnet.nets.pytorch_backend.conformer.subsampling import Conv2dSubsampling
@@ -107,9 +108,9 @@ class ConformerEncoder(AbsEncoder):
                 output_size,
                 pos_enc_class(output_size, positional_dropout_rate),
             )
-	elif input_layer == "vgg2l":
+        elif input_layer == "vgg2l":
             self.embed = VGG2L(input_size, output_size)
-	elif input_layer == "embed":
+        elif input_layer == "embed":
             self.embed = torch.nn.Sequential(
                 torch.nn.Embedding(input_size, output_size, padding_idx=padding_idx),
                 pos_enc_class(output_size, positional_dropout_rate),
@@ -147,7 +148,6 @@ class ConformerEncoder(AbsEncoder):
         else:
             raise NotImplementedError("Support only linear or conv1d.")
         if selfattention_layer_type == "selfattn":
-            logging.info("encoder self-attention layer type = self-attention")
             encoder_selfattn_layer = MultiHeadedAttention
             encoder_selfattn_layer_args = (
                 attention_heads,
