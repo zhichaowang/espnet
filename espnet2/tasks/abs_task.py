@@ -272,7 +272,7 @@ class AbsTask(ABC):
         group.add_argument(
             "--iterator_type",
             type=str,
-            choices=["sequence", "none"],
+            choices=["sequence", "chunk", "none"],
             default="sequence",
             help="Specify iterator type",
         )
@@ -1228,7 +1228,7 @@ class AbsTask(ABC):
                     reporter=reporter,
                     output_dir=output_dir,
                     best_model_criterion=args.best_model_criterion,
-                    nbest=6,
+                    nbest=args.keep_nbest_models,
                 )
 
     @classmethod

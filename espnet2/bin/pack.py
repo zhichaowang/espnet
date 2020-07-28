@@ -10,13 +10,19 @@ class PackedContents:
 
 
 class ASRPackedContents(PackedContents):
-    files = ["asr_model_file.pth", "lm_file.pth"]
-    yaml_files = ["asr_train_config.yaml", "lm_train_config.yaml"]
+    # These names must be consistent with the argument of inference functions
+    files = ["asr_model_file", "lm_file"]
+    yaml_files = ["asr_train_config", "lm_train_config"]
 
 
 class TTSPackedContents(PackedContents):
-    files = ["model_file.pth"]
-    yaml_files = ["train_config.yaml"]
+    files = ["model_file"]
+    yaml_files = ["train_config"]
+
+
+class EnhPackedContents(PackedContents):
+    files = ["model_file"]
+    yaml_files = ["train_config"]
 
 
 def add_arguments(parser: argparse.ArgumentParser, contents: Type[PackedContents]):
@@ -29,15 +35,15 @@ def add_arguments(parser: argparse.ArgumentParser, contents: Type[PackedContents
 
 
 def get_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Pack input files to archive format. If the external file path "
-        "are written in the input yaml files, then the paths are "
-        "rewritten to the archived name",
-    )
+    parser = argparse.ArgumentParser(description="Pack input files to archive format")
     subparsers = parser.add_subparsers()
 
     # Create subparser for ASR
-    for name, contents in [("asr", ASRPackedContents), ("tts", TTSPackedContents)]:
+    for name, contents in [
+        ("asr", ASRPackedContents),
+        ("tts", TTSPackedContents),
+        ("enh", EnhPackedContents),
+    ]:
         parser_asr = subparsers.add_parser(
             name, formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         )
