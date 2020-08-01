@@ -11,7 +11,7 @@ sample_rate=8k
 
 train_set="tr_${min_or_max}_${sample_rate}"
 valid_set="cv_${min_or_max}_${sample_rate}"
-test_sets="tt_${min_or_max}_${sample_rate} "
+test_sets="tt_${min_or_max}_${sample_rate}"
 
 ./enh_asr.sh \
     --lang "en" \

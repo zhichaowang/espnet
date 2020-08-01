@@ -74,12 +74,6 @@ inference_enh_model=valid.si_snr.best.pth
 scoring_protocol="STOI SDR SAR SIR"
 ref_channel=0
 
-# [Task dependent for enh] Set the datadir name created by local/data.sh
-train_set=     # Name of training set.
-valid_set=       # Name of development set.
-test_sets=     # Names of evaluation sets. Multiple items can be specified.
-enh_speech_fold_length=800 # fold_length for speech data during enhancement training
-
 # Tokenization related
 token_type=bpe      # Tokenization type (char or bpe).
 nbpe=30             # The number of BPE vocabulary.
@@ -121,9 +115,11 @@ decode_asr_model=valid.acc.best.pth # ASR model path for decoding.
 train_set=       # Name of training set.
 valid_set=       # Name of validation set used for monitoring/tuning network training
 test_sets=       # Names of test sets. Multiple items (e.g., both dev and eval sets) can be specified.
+enh_speech_fold_length=800 # fold_length for speech data during enhancement training
+# TODO(Jing): should add the wsj1 texts in run?
 srctexts=        # Used for the training of BPE and LM and the creation of a vocabulary list.
-lm_dev_text=dump/raw/dev_srctexts_with_spk     # Text file path of language model development set.
-lm_test_text=dump/raw/test_srctexts_with_spk    # Text file path of language model evaluation set.
+lm_dev_text=     # Text file path of language model development set.
+lm_test_text=    # Text file path of language model evaluation set.
 nlsyms_txt=none  # Non-linguistic symbol list if existing.
 cleaner=none     # Text cleaner.
 g2p=none         # g2p method (needed if token_type=phn).
@@ -215,10 +211,12 @@ fi
 data_feats=${dumpdir}/raw
 
 
-# Use the same text as ASR for lm training if not specified.
-[ -z "${lm_dev_text}" ] && lm_dev_text="${data_feats}/${valid_set}/text"
-# Use the text of the 1st evaldir if lm_test is not specified
-[ -z "${lm_test_text}" ] && lm_test_text="${data_feats}/${test_sets%% *}/text"
+if [ ${spk_num} -le 1 ]; then
+    # Use the same text as ASR for lm training if not specified.
+    [ -z "${lm_dev_text}" ] && lm_dev_text="${data_feats}/${valid_set}/text"
+    # Use the text of the 1st evaldir if lm_test is not specified
+    [ -z "${lm_test_text}" ] && lm_test_text="${data_feats}/${test_sets%% *}/text"
+fi
 
 # Check tokenization type
 token_listdir=data/token_list
@@ -458,7 +456,6 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     done
 fi
 
-# TODO(Jing): re-assign the stage number
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     if [ "${token_type}" = bpe ]; then
         log "Stage 5: Generate token_list from ${data_feats}/srctexts using BPE"
@@ -538,8 +535,23 @@ fi
 # ========================== LM Begins ==========================
 if "${use_lm}"; then
     if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
-        # TODO: the srctexts should gets another one to aovid the duplicated keys
         log "Stage 6: LM collect stats: train_set=${data_feats}/srctexts, dev_set=${lm_dev_text}"
+
+        # the srctexts should gets another one to aovid the duplicated keys
+        if [ ${spk_num} -ge 2 ]; then
+            _spk_list=" "
+            for i in $(seq ${spk_num}); do
+                _spk_list+="spk${i} "
+            done
+            for spk in ${_spk_list}; do
+                awk '{print "'$spk'_"$0}' "${data_feats}/${valid_set}/text_${spk}" > "${data_feats}/valid_srctexts_${spk}"
+                awk '{print "'$spk'_"$0}' "${data_feats}/org/${test_sets}/text_${spk}" > "${data_feats}/test_srctexts_${spk}"
+            done
+            cat ${data_feats}/valid_srctexts_spk* | awk ' { if( NF != 1 ) print $0; } '  > "${data_feats}/valid_srctexts_with_spk"
+            cat ${data_feats}/test_srctexts_spk* | awk ' { if( NF != 1 ) print $0; } '  > "${data_feats}/test_srctexts_with_spk"
+            lm_dev_text="${data_feats}/valid_srctexts_with_spk"      # Text file path of language model development set.
+            lm_test_text="${data_feats}/test_srctexts_with_spk"    # Text file path of language model evaluation set.
+        fi
 
         _opts=
         if [ -n "${lm_config}" ]; then
@@ -953,8 +965,8 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
 fi
 
 
-if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
-    log "Stage 8: Scoring"
+if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
+    log "Stage 12: Scoring"
     _cmd=${decode_cmd}
 
     for dset in "${valid_set}" ${test_sets}; do
@@ -1015,8 +1027,8 @@ if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
 fi
 
 
-if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
-    log "[Option] Stage 9: Pack model: ${joint_exp}/packed.zip"
+if [ ${stage} -le 13 ] && [ ${stop_stage} -ge 13 ]; then
+    log "[Option] Stage 13: Pack model: ${joint_exp}/packed.zip"
 
     _opts=
     if [ "${feats_normalize}" = global_mvn ]; then
