@@ -24,7 +24,7 @@ SECONDS=0
 
 # General configuration
 stage=1          # Processes starts from the specified stage.
-stop_stage=15   # Processes is stopped at the specified stage.
+stop_stage=13   # Processes is stopped at the specified stage.
 ngpu=1           # The number of gpus ("0" uses cpu, otherwise use gpu).
 num_nodes=1      # The number of nodes
 mem=10G          # Memory per CPU
@@ -902,149 +902,9 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
 fi
 
 
-if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
-    log "Stage 11: Enhance Speech: training_dir=${joint_exp}"
-
-    if ${gpu_inference}; then
-        _cmd=${cuda_cmd}
-        _ngpu=1
-    else
-        _cmd=${decode_cmd}
-        _ngpu=0
-    fi
-
-    _opts=
-    if [ -n "${decode_config}" ]; then
-        _opts+="--config ${decode_config} "
-    fi
-    if "${use_lm}"; then
-        if "${use_word_lm}"; then
-            _opts+="--word_lm_train_config ${lm_exp}/config.yaml "
-            _opts+="--word_lm_file ${lm_exp}/${inference_lm} "
-        else
-            _opts+="--lm_train_config ${lm_exp}/config.yaml "
-            _opts+="--lm_file ${lm_exp}/${inference_lm} "
-        fi
-    fi
-
-    # FIXME(Jing): test_sets not found, must with dump/raw/org/
-    #for dset in "${valid_set}" ${test_sets}; do
-    for dset in ${test_sets}; do
-        _data="${data_feats}/${dset}"
-        _dir="${joint_exp}/enhanced_${dset}"
-        _logdir="${_dir}/logdir"
-        mkdir -p "${_logdir}"
-
-        _scp=wav.scp
-        _type=sound
-
-        # 1. Split the key file
-        key_file=${_data}/${_scp}
-        split_scps=""
-        _nj=$(min "${infernece_nj}" "$(<${key_file} wc -l)")
-        for n in $(seq "${_nj}"); do
-            split_scps+=" ${_logdir}/keys.${n}.scp"
-        done
-        # shellcheck disable=SC2086
-        utils/split_scp.pl "${key_file}" ${split_scps}
-
-        # 2. Submit decoding jobs
-        log "Ehancement started... log: '${_logdir}/enh_inference.*.log'"
-        # shellcheck disable=SC2086
-        ${_cmd} --gpu "${_ngpu}" --mem ${mem} JOB=1:"${_nj}" "${_logdir}"/enh_inference.JOB.log \
-            python3 -m espnet2.bin.enh_inference \
-                --ngpu "${_ngpu}" \
-                --fs "${fs}" \
-                --data_path_and_name_and_type "${_data}/${_scp},speech_mix,${_type}" \
-                --key_file "${_logdir}"/keys.JOB.scp \
-                --enh_train_config "${joint_exp}"/config.yaml \
-                --enh_model_file "${joint_exp}"/"${inference_enh_model}" \
-                --output_dir "${_logdir}"/output.JOB \
-                ${_opts} ${inference_args}
-
-
-        _spk_list=" "
-        for i in $(seq ${spk_num}); do
-            _spk_list+="spk${i} "
-        done
-
-        # 3. Concatenates the output files from each jobs
-        for spk in ${_spk_list} ;
-        do
-            for i in $(seq "${_nj}"); do
-                cat "${_logdir}/output.${i}/${spk}.scp"
-            done | LC_ALL=C sort -k1 > "${_dir}/${spk}.scp"
-        done
-
-    done
-fi
-
-
-if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
-    log "Stage 12: Scoring"
-    _cmd=${decode_cmd}
-
-    #for dset in "${valid_set}" ${test_sets}; do
-    for dset in ${test_sets}; do
-        _data="${data_feats}/${dset}"
-        _inf_dir="${joint_exp}/enhanced_${dset}"
-        _dir="${joint_exp}/enhanced_${dset}/scoring"
-        _logdir="${_dir}/logdir"
-        mkdir -p "${_logdir}"
-
-        # 1. Split the key file
-        key_file=${_data}/wav.scp
-        split_scps=""
-        _nj=$(min "${infernece_nj}" "$(<${key_file} wc -l)")
-        for n in $(seq "${_nj}"); do
-            split_scps+=" ${_logdir}/keys.${n}.scp"
-        done
-        # shellcheck disable=SC2086
-        utils/split_scp.pl "${key_file}" ${split_scps}
-
-
-        _ref_scp=
-        for spk in $(seq "${spk_num}"); do
-            _ref_scp+="--ref_scp ${_data}/spk${spk}.scp "
-        done
-        _inf_scp=
-        for spk in $(seq "${spk_num}"); do
-            _inf_scp+="--inf_scp ${_inf_dir}/spk${spk}.scp "
-        done
-
-        # 2. Submit decoding jobs
-        log "Scoring started... log: '${_logdir}/enh_scoring.*.log'"
-        # shellcheck disable=SC2086
-        ${_cmd} JOB=1:"${_nj}" "${_logdir}"/enh_scoring.JOB.log \
-            python3 -m espnet2.bin.enh_scoring \
-                --key_file "${_logdir}"/keys.JOB.scp \
-                --output_dir "${_logdir}"/output.JOB \
-                ${_ref_scp} \
-                ${_inf_scp} \
-                --ref_channel ${ref_channel}
-
-        for spk in $(seq "${spk_num}"); do
-            for protocol in ${scoring_protocol}; do
-                for i in $(seq "${_nj}"); do
-                    cat "${_logdir}/output.${i}/${protocol}_spk${spk}"
-                done | LC_ALL=C sort -k1 > "${_dir}/${protocol}_spk${spk}"
-            done
-        done
-
-        for protocol in ${scoring_protocol}; do
-            # shellcheck disable=SC2046
-            paste $(for j in $(seq ${spk_num}); do echo "${_dir}"/"${protocol}"_spk"${j}" ; done)  |
-            awk 'BEIGN{sum=0}
-                {n=0;score=0;for (i=2; i<=NF; i+=2){n+=1;score+=$i}; sum+=score/n}
-                END{print sum/NR}' > "${_dir}/result_${protocol,,}.txt"
-        done
-    done
-
-fi
-
 if ! "${skip_eval}"; then
-    if [ ${stage} -le 13 ] && [ ${stop_stage} -ge 13 ]; then
-        log "Stage 13: Decoding: training_dir=${joint_exp}"
+    if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
+        log "Stage 11: Decoding: training_dir=${joint_exp}"
 
         if ${gpu_inference}; then
             _cmd="${cuda_cmd}"
@@ -1135,8 +995,8 @@ if ! "${skip_eval}"; then
     fi
 
 
-    if [ ${stage} -le 14 ] && [ ${stop_stage} -ge 14 ]; then
-        log "Stage 14: Scoring"
+    if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
+        log "Stage 12: Scoring"
         if [ "${token_type}" = pnh ]; then
             log "Error: Not implemented for token_type=phn"
             exit 1
@@ -1257,8 +1117,8 @@ else
     log "Skip the evaluation stages"
 fi
 
-if [ ${stage} -le 15 ] && [ ${stop_stage} -ge 15 ]; then
-    log "[Option] Stage 15: Pack model: ${joint_exp}/packed.zip"
+if [ ${stage} -le 13 ] && [ ${stop_stage} -ge 13 ]; then
+    log "[Option] Stage 13: Pack model: ${joint_exp}/packed.zip"
 
     _opts=
     if [ "${feats_normalize}" = global_mvn ]; then
