@@ -1070,7 +1070,7 @@ if ! "${skip_eval}"; then
 
         for dset in ${test_sets}; do
             _data="${data_feats}/${dset}"
-            _dir="${joint_exp}/inference_${dset}_${decode_tag}"
+            _dir="${joint_exp}/decode_${dset}_${decode_tag}"
             _logdir="${_dir}/logdir"
             mkdir -p "${_logdir}"
 
@@ -1083,8 +1083,13 @@ if ! "${skip_eval}"; then
                 _type=kaldi_ark
             fi
 
+            _decode_data_param="--data_path_and_name_and_type ${_data}/${_scp},speech_mix,${_type} "
+            for spk in $(seq "${spk_num}"); do
+                _decode_data_param+="--data_path_and_name_and_type ${_data}/spk${spk}.scp,speech_ref${spk},${_type} "
+            done
+
             # 1. Split the key file
-            key_file=${_data}/${_scp}
+            key_file=${_data}/'wav.scp'
             split_scps=""
             _nj=$(min "${inference_nj}" "$(<${key_file} wc -l)")
             for n in $(seq "${_nj}"); do
@@ -1100,9 +1105,7 @@ if ! "${skip_eval}"; then
                 python3 -m espnet2.bin.enh_asr_inference \
                     --ngpu "${_ngpu}" \
                     --fs "${fs}" \
-                    --data_path_and_name_and_type "${_data}/${_scp},speech_mix,${_type}" \
-                    --data_path_and_name_and_type "${_data}/spk1.scp,speech_ref1,${_type}" \
-                    --data_path_and_name_and_type "${_data}/spk2.scp,speech_ref2,${_type}" \
+                    ${_decode_data_param} \
                     --key_file "${_logdir}"/keys.JOB.scp \
                     --joint_train_config "${joint_exp}"/config.yaml \
                     --joint_model_file "${joint_exp}"/"${decode_joint_model}" \
@@ -1116,6 +1119,17 @@ if ! "${skip_eval}"; then
                         cat "${_logdir}/output.${i}/1best_recog_spk${spk}/${f}"
                     done | LC_ALL=C sort -k1 >"${_dir}/${f}_spk${spk}"
                 done
+                for i in $(seq "${_nj}"); do
+                    cat "${_logdir}/output.${i}/SDR_spk${spk}"
+                done | LC_ALL=C sort -k1 >"${_dir}/SDR_spk${spk}"
+            done
+
+            for protocol in "SDR"; do
+                # shellcheck disable=SC2046
+                paste $(for j in $(seq ${spk_num}); do echo "${_dir}"/"${protocol}"_spk"${j}" ; done)  |
+                awk 'BEIGN{sum=0}
+                    {n=0;score=0;for (i=2; i<=NF; i+=2){n+=1;score+=$i}; sum+=score/n}
+                    END{print sum/NR}' > "${_dir}/enh_result_${protocol,,}.txt"
             done
         done
     fi
@@ -1130,7 +1144,7 @@ if ! "${skip_eval}"; then
 
         for dset in ${test_sets}; do
             _data="${data_feats}/${dset}"
-            _dir="${joint_exp}/inference_${dset}_${decode_tag}"
+            _dir="${joint_exp}/decode_${dset}_${decode_tag}"
 
             for _type in cer wer ter; do
                 [ "${_type}" = ter ] && [ ! -f "${bpemodel}" ] && continue
@@ -1252,9 +1266,9 @@ if [ ${stage} -le 15 ] && [ ${stop_stage} -ge 15 ]; then
     fi
 
     # shellcheck disable=SC2086
-    python -m espnet2.bin.pack enh \
+    python -m espnet2.bin.pack asr\
         --train_config.yaml "${joint_exp}"/config.yaml \
-        --model_file.pth "${joint_exp}"/"${inference_enh_model}" \
+        --model_file.pth "${joint_exp}"/"${decode_joint_model}" \
         ${_opts} \
         --option "${joint_exp}"/RESULTS.TXT \
         --outpath "${joint_exp}/packed.zip"
