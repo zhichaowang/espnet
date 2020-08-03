@@ -24,15 +24,16 @@ SECONDS=0
 
 # General configuration
 stage=1          # Processes starts from the specified stage.
-stop_stage=12    # Processes is stopped at the specified stage.
+stop_stage=15   # Processes is stopped at the specified stage.
 ngpu=1           # The number of gpus ("0" uses cpu, otherwise use gpu).
 num_nodes=1      # The number of nodes
 mem=10G          # Memory per CPU
 nj=32            # The number of parallel jobs.
 dumpdir=dump     # Directory to dump features.
-infernece_nj=32     # The number of parallel jobs in decoding.
+inference_nj=32     # The number of parallel jobs in decoding.
 gpu_inference=false # Whether to perform gpu decoding.
 expdir=exp       # Directory to save experiments.
+skip_eval=false      # Skip decoding and evaluation stages
 
 # Data preparation related
 local_data_opts= # The options given to local/data.sh.
@@ -66,9 +67,6 @@ num_splits_asr=1   # Number of splitting for lm corpus
 use_dereverb_ref=false
 use_noise_ref=false
 
-# Enhancement related
-inference_args="--normalize_output_wav true"
-inference_enh_model=valid.si_snr.best.pth
 
 # Evaluation related
 scoring_protocol="STOI SDR SAR SIR"
@@ -99,10 +97,13 @@ word_vocab_size=10000 # Size of word vocabulary.
 
 
 # Decoding related
+inference_lm=valid.loss.best.pth       # Language modle path for decoding.
 decode_tag=    # Suffix to the result dir for decoding.
 decode_config= # Config for decoding.
-decode_args=   # Arguments for decoding, e.g., "--lm_weight 0.1".
-               # Note that it will overwrite args in decode config.
+decode_args="--normalize_output_wav true "   # Arguments for decoding, e.g., "--lm_weight 0.1".
+                                            # Note that it will overwrite args in decode config.
+# TODO(Jing): needs more clean configure choice
+decode_joint_model=valid.loss.best.pth
 decode_lm=valid.loss.best.pth       # Language modle path for decoding.
 decode_asr_model=valid.acc.best.pth # ASR model path for decoding.
                                     # e.g.
@@ -138,7 +139,7 @@ Options:
     --ngpu          # The number of gpus ("0" uses cpu, otherwise use gpu, default="${ngpu}").
     --num_nodes     # The number of nodes
     --nj            # The number of parallel jobs (default="${nj}").
-    --infernece_nj  # The number of parallel jobs in inference (default="${infernece_nj}").
+    --inference_nj  # The number of parallel jobs in inference (default="${inference_nj}").
     --gpu_inference # Whether to use gpu for inference (default="${gpu_inference}").
     --dumpdir       # Directory to dump features (default="${dumpdir}").
     --expdir        # Directory to save experiments (default="${expdir}").
@@ -173,8 +174,8 @@ Options:
                          for training a denoising model (default="${use_noise_ref}")
 
     # Enhancement related
-    --inference_args      # Arguments for enhancement in the inference stage (default="${inference_args}")
-    --inference_enh_model # Enhancement model path for inference (default="${inference_enh_model}").
+    --decode_args      # Arguments for enhancement in the inference stage (default="${decode_args}")
+    --decode_joint_model # Enhancement model path for inference (default="${decode_joint_model}").
 
     # Evaluation related
     --scoring_protocol    # Metrics to be used for scoring (default="${scoring_protocol}")
@@ -280,9 +281,9 @@ if [ -z "${decode_tag}" ]; then
         decode_tag=decode
     fi
     # Add overwritten arg's info
-    if [ -n "${decode_args}" ]; then
-        decode_tag+="$(echo "${decode_args}" | sed -e "s/--/\_/g" -e "s/[ |=]//g")"
-    fi
+    #if [ -n "${decode_args}" ]; then
+    #    decode_tag+="$(echo "${decode_args}" | sed -e "s/--/\_/g" -e "s/[ |=]//g")"
+    #fi
     if "${use_lm}"; then
         decode_tag+="_lm_${lm_tag}_$(echo "${decode_lm}" | sed -e "s/\//_/g" -e "s/\.[^.]*$//g")"
     fi
@@ -913,8 +914,22 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
     fi
 
     _opts=
+    if [ -n "${decode_config}" ]; then
+        _opts+="--config ${decode_config} "
+    fi
+    if "${use_lm}"; then
+        if "${use_word_lm}"; then
+            _opts+="--word_lm_train_config ${lm_exp}/config.yaml "
+            _opts+="--word_lm_file ${lm_exp}/${inference_lm} "
+        else
+            _opts+="--lm_train_config ${lm_exp}/config.yaml "
+            _opts+="--lm_file ${lm_exp}/${inference_lm} "
+        fi
+    fi
 
-    for dset in "${valid_set}" ${test_sets}; do
+    # FIXME(Jing): test_sets not found, must with dump/raw/org/
+    #for dset in "${valid_set}" ${test_sets}; do
+    for dset in ${test_sets}; do
         _data="${data_feats}/${dset}"
         _dir="${joint_exp}/enhanced_${dset}"
         _logdir="${_dir}/logdir"
@@ -969,7 +984,8 @@ if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
     log "Stage 12: Scoring"
     _cmd=${decode_cmd}
 
-    for dset in "${valid_set}" ${test_sets}; do
+    #for dset in "${valid_set}" ${test_sets}; do
+    for dset in ${test_sets}; do
         _data="${data_feats}/${dset}"
         _inf_dir="${joint_exp}/enhanced_${dset}"
         _dir="${joint_exp}/enhanced_${dset}/scoring"
@@ -1026,9 +1042,209 @@ if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
 
 fi
 
+if ! "${skip_eval}"; then
+    if [ ${stage} -le 13 ] && [ ${stop_stage} -ge 13 ]; then
+        log "Stage 13: Decoding: training_dir=${joint_exp}"
 
-if [ ${stage} -le 13 ] && [ ${stop_stage} -ge 13 ]; then
-    log "[Option] Stage 13: Pack model: ${joint_exp}/packed.zip"
+        if ${gpu_inference}; then
+            _cmd="${cuda_cmd}"
+            _ngpu=1
+        else
+            _cmd="${decode_cmd}"
+            _ngpu=0
+        fi
+
+        _opts=
+        if [ -n "${decode_config}" ]; then
+            _opts+="--config ${decode_config} "
+        fi
+        if "${use_lm}"; then
+            if "${use_word_lm}"; then
+                _opts+="--word_lm_train_config ${lm_exp}/config.yaml "
+                _opts+="--word_lm_file ${lm_exp}/${inference_lm} "
+            else
+                _opts+="--lm_train_config ${lm_exp}/config.yaml "
+                _opts+="--lm_file ${lm_exp}/${inference_lm} "
+            fi
+        fi
+
+        for dset in ${test_sets}; do
+            _data="${data_feats}/${dset}"
+            _dir="${joint_exp}/inference_${dset}_${decode_tag}"
+            _logdir="${_dir}/logdir"
+            mkdir -p "${_logdir}"
+
+            _feats_type="$(<${_data}/feats_type)"
+            if [ "${_feats_type}" = raw ]; then
+                _scp=wav.scp
+                _type=sound
+            else
+                _scp=feats.scp
+                _type=kaldi_ark
+            fi
+
+            # 1. Split the key file
+            key_file=${_data}/${_scp}
+            split_scps=""
+            _nj=$(min "${inference_nj}" "$(<${key_file} wc -l)")
+            for n in $(seq "${_nj}"); do
+                split_scps+=" ${_logdir}/keys.${n}.scp"
+            done
+            # shellcheck disable=SC2086
+            utils/split_scp.pl "${key_file}" ${split_scps}
+
+            # 2. Submit decoding jobs
+            log "Decoding started... log: '${_logdir}/joint_inference.*.log'"
+            # shellcheck disable=SC2086
+            ${_cmd} --gpu "${_ngpu}" JOB=1:"${_nj}" "${_logdir}"/joint_inference.JOB.log \
+                python3 -m espnet2.bin.enh_asr_inference \
+                    --ngpu "${_ngpu}" \
+                    --fs "${fs}" \
+                    --data_path_and_name_and_type "${_data}/${_scp},speech_mix,${_type}" \
+                    --data_path_and_name_and_type "${_data}/spk1.scp,speech_ref1,${_type}" \
+                    --data_path_and_name_and_type "${_data}/spk2.scp,speech_ref2,${_type}" \
+                    --key_file "${_logdir}"/keys.JOB.scp \
+                    --joint_train_config "${joint_exp}"/config.yaml \
+                    --joint_model_file "${joint_exp}"/"${decode_joint_model}" \
+                    --output_dir "${_logdir}"/output.JOB \
+                    ${_opts} ${decode_args}
+
+            # 3. Concatenates the output files from each jobs
+            for spk in $(seq "${spk_num}"); do
+                for f in token token_int score text; do
+                    for i in $(seq "${_nj}"); do
+                        cat "${_logdir}/output.${i}/1best_recog_spk${spk}/${f}"
+                    done | LC_ALL=C sort -k1 >"${_dir}/${f}_spk${spk}"
+                done
+            done
+        done
+    fi
+
+
+    if [ ${stage} -le 14 ] && [ ${stop_stage} -ge 14 ]; then
+        log "Stage 14: Scoring"
+        if [ "${token_type}" = pnh ]; then
+            log "Error: Not implemented for token_type=phn"
+            exit 1
+        fi
+
+        for dset in ${test_sets}; do
+            _data="${data_feats}/${dset}"
+            _dir="${joint_exp}/inference_${dset}_${decode_tag}"
+
+            for _type in cer wer ter; do
+                [ "${_type}" = ter ] && [ ! -f "${bpemodel}" ] && continue
+
+                _scoredir="${_dir}/score_${_type}"
+                mkdir -p "${_scoredir}"
+
+                if [ "${_type}" = wer ]; then
+                    # Tokenize text to word level
+                    for spk in $(seq "${spk_num}"); do
+                        paste \
+                            <(<"${_data}/text_spk${spk}" \
+                                  python3 -m espnet2.bin.tokenize_text  \
+                                      -f 2- --input - --output - \
+                                      --token_type word \
+                                      --non_linguistic_symbols "${nlsyms_txt}" \
+                                      --remove_non_linguistic_symbols true \
+                                      --cleaner "${cleaner}" \
+                                      ) \
+                            <(<"${_data}/text_spk${spk}" awk '{ print "(" $1 ")" }') \
+                                >"${_scoredir}/ref_spk${spk}.trn"
+
+                        # NOTE(kamo): Don't use cleaner for hyp
+                        paste \
+                            <(<"${_dir}/text_spk${spk}"  \
+                                  python3 -m espnet2.bin.tokenize_text  \
+                                      -f 2- --input - --output - \
+                                      --token_type word \
+                                      --non_linguistic_symbols "${nlsyms_txt}" \
+                                      --remove_non_linguistic_symbols true \
+                                      ) \
+                            <(<"${_data}/text_spk${spk}" awk '{ print "(" $1 ")" }') \
+                                >"${_scoredir}/hyp_spk${spk}.trn"
+                    done
+
+
+                elif [ "${_type}" = cer ]; then
+                    # Tokenize text to char level
+                    for spk in $(seq "${spk_num}"); do
+                        paste \
+                            <(<"${_data}/text_spk${spk}" \
+                                  python3 -m espnet2.bin.tokenize_text  \
+                                      -f 2- --input - --output - \
+                                      --token_type char \
+                                      --non_linguistic_symbols "${nlsyms_txt}" \
+                                      --remove_non_linguistic_symbols true \
+                                      --cleaner "${cleaner}" \
+                                      ) \
+                            <(<"${_data}/text_spk${spk}" awk '{ print "(" $1 ")" }') \
+                                >"${_scoredir}/ref_spk${spk}.trn"
+
+                        # NOTE(kamo): Don't use cleaner for hyp
+                        paste \
+                            <(<"${_dir}/text_spk${spk}"  \
+                                  python3 -m espnet2.bin.tokenize_text  \
+                                      -f 2- --input - --output - \
+                                      --token_type char \
+                                      --non_linguistic_symbols "${nlsyms_txt}" \
+                                      --remove_non_linguistic_symbols true \
+                                      ) \
+                            <(<"${_data}/text_spk${spk}" awk '{ print "(" $1 ")" }') \
+                                >"${_scoredir}/hyp_spk${spk}.trn"
+                    done
+
+                elif [ "${_type}" = ter ]; then
+                    # Tokenize text using BPE
+                    for spk in $(seq "${spk_num}"); do
+                        paste \
+                            <(<"${_data}/text_spk${spk}" \
+                                  python3 -m espnet2.bin.tokenize_text  \
+                                      -f 2- --input - --output - \
+                                      --token_type bpe \
+                                      --bpemodel "${bpemodel}" \
+                                      --cleaner "${cleaner}" \
+                                    ) \
+                            <(<"${_data}/text_spk${spk}" awk '{ print "(" $1 ")" }') \
+                                >"${_scoredir}/ref_spk${spk}.trn"
+
+                        # NOTE(kamo): Don't use cleaner for hyp
+                        paste \
+                            <(<"${_dir}/text_spk${spk}" \
+                                  python3 -m espnet2.bin.tokenize_text  \
+                                      -f 2- --input - --output - \
+                                      --token_type bpe \
+                                      --bpemodel "${bpemodel}" \
+                                      --cleaner "${cleaner}" \
+                                      ) \
+                            <(<"${_data}/text_spk${spk}" awk '{ print "(" $1 ")" }') \
+                                >"${_scoredir}/hyp_spk${spk}.trn"
+                        done
+                fi
+
+                sclite \
+                    -r "${_scoredir}/ref.trn" trn \
+                    -h "${_scoredir}/hyp.trn" trn \
+                    -i rm -o all stdout > "${_scoredir}/result.txt"
+
+                log "Write ${_type} result in ${_scoredir}/result.txt"
+                grep -e Avg -e SPKR -m 2 "${_scoredir}/result.txt"
+            done
+
+        done
+
+        # Show results in Markdown syntax
+        scripts/utils/show_asr_result.sh "${joint_exp}" > "${joint_exp}"/RESULTS.md
+        cat "${joint_exp}"/RESULTS.md
+
+    fi
+else
+    log "Skip the evaluation stages"
+fi
+
+if [ ${stage} -le 15 ] && [ ${stop_stage} -ge 15 ]; then
+    log "[Option] Stage 15: Pack model: ${joint_exp}/packed.zip"
 
     _opts=
     if [ "${feats_normalize}" = global_mvn ]; then

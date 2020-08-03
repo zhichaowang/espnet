@@ -107,6 +107,9 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         # self.idx_blank = token_list.index(sym_blank) # 0
         self.idx_blank = -1
 
+        # self.end2end_train = False
+        self.end2end_train = True
+
     def _create_mask_label(self, mix_spec, ref_spec, mask_type="IAM"):
         """Create mask label.
 
@@ -242,6 +245,10 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         # speech_pre: (bs,num_spk,T)
         assert speech_pre[:, 0].shape == speech_mix.shape
 
+        if not self.end2end_train:
+            # if the End and ASR is trained independetly
+            # use the speech_ref to train asr
+            speech_pre = torch.stack([speech_ref1,speech_ref2], dim=1)
         # Pack the separated speakers into the ASR part.
         speech_pre_all = speech_pre.view(-1, speech_mix.shape[-1])  # (bs*num_spk, T)
         speech_pre_lengths = torch.stack(
