@@ -545,9 +545,11 @@ if "${use_lm}"; then
                 _spk_list+="spk${i} "
             done
             for spk in ${_spk_list}; do
+                awk '{print "'$spk'_"$0}' "${data_feats}/${train_set}/text_${spk}" > "${data_feats}/srctexts_${spk}"
                 awk '{print "'$spk'_"$0}' "${data_feats}/${valid_set}/text_${spk}" > "${data_feats}/valid_srctexts_${spk}"
                 awk '{print "'$spk'_"$0}' "${data_feats}/org/${test_sets}/text_${spk}" > "${data_feats}/test_srctexts_${spk}"
             done
+            cat ${data_feats}/srctexts_spk* | awk ' { if( NF != 1 ) print $0; } '  > "${data_feats}/srctexts_with_spk"
             cat ${data_feats}/valid_srctexts_spk* | awk ' { if( NF != 1 ) print $0; } '  > "${data_feats}/valid_srctexts_with_spk"
             cat ${data_feats}/test_srctexts_spk* | awk ' { if( NF != 1 ) print $0; } '  > "${data_feats}/test_srctexts_with_spk"
             lm_dev_text="${data_feats}/valid_srctexts_with_spk"      # Text file path of language model development set.
