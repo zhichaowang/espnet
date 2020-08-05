@@ -12,7 +12,7 @@ from espnet2.enh.nets.beamformer_net import BeamformerNet
 @pytest.mark.parametrize("num_spk", [1, 2])
 @pytest.mark.parametrize("normalize_input", [True, False])
 @pytest.mark.parametrize("mask_type", ["IPM^2"])
-@pytest.mark.parametrize("loss_type", ["mask", "spectrum"])
+@pytest.mark.parametrize("loss_type", ["mask_mse", "spectrum"])
 @pytest.mark.parametrize("use_wpe", [False])
 @pytest.mark.parametrize("wnet_type", ["blstmp"])
 @pytest.mark.parametrize("wlayers", [3])
@@ -97,7 +97,7 @@ def test_beamformer_net_forward_backward(
     est_speech, flens, masks = model(
         torch.randn(2, 16, 2, requires_grad=True), ilens=torch.LongTensor([16, 12])
     )
-    if loss_type == "mask":
+    if loss_type.startswith("mask"):
         assert est_speech is None
         loss = sum([abs(m).mean() for m in masks.values()])
     else:
@@ -111,7 +111,7 @@ def test_beamformer_net_forward_backward(
 @pytest.mark.parametrize("num_spk", [1, 2])
 @pytest.mark.parametrize("normalize_input", [True, False])
 @pytest.mark.parametrize("mask_type", ["IPM^2"])
-@pytest.mark.parametrize("loss_type", ["mask", "spectrum"])
+@pytest.mark.parametrize("loss_type", ["mask_mse", "spectrum"])
 @pytest.mark.parametrize("use_wpe", [False])
 @pytest.mark.parametrize("wnet_type", ["blstmp"])
 @pytest.mark.parametrize("wlayers", [3])

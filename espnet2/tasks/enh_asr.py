@@ -20,8 +20,8 @@ from espnet2.asr.encoder.abs_encoder import AbsEncoder
 from espnet2.asr.encoder.rnn_encoder import RNNEncoder
 from espnet2.asr.encoder.transformer_encoder import TransformerEncoder
 from espnet2.asr.encoder.vgg_rnn_encoder import VGGRNNEncoder
-from espnet2.asr.espnet_model import ESPnetASRModel
 from espnet2.asr.espnet_joint_model import ESPnetEnhASRModel
+from espnet2.asr.espnet_model import ESPnetASRModel
 from espnet2.asr.frontend.abs_frontend import AbsFrontend
 from espnet2.asr.frontend.default import DefaultFrontend
 from espnet2.asr.specaug.abs_specaug import AbsSpecAug
@@ -231,7 +231,8 @@ class ASRTask(AbsTask):
         cls, args: argparse.Namespace, train: bool
     ) -> Optional[Callable[[str, Dict[str, np.array]], Dict[str, np.ndarray]]]:
         assert check_argument_types()
-        # TODO(Jing): ask Kamo if it ok to support several args, like text_name = 'text_ref1' and 'text_ref2'
+        # TODO(Jing): ask Kamo if it ok to support several args,
+        # like text_name = 'text_ref1' and 'text_ref2'
         if args.use_preprocessor:
             retval = CommonPreprocessor_multi(
                 train=train,

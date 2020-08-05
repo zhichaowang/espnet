@@ -36,6 +36,7 @@ dumpdir=dump     # Directory to dump features.
 inference_nj=32     # The number of parallel jobs in decoding.
 gpu_inference=false # Whether to perform gpu decoding.
 expdir=exp       # Directory to save experiments.
+python=python3       # Specify python to execute espnet commands
 
 # Data preparation related
 local_data_opts= # The options given to local/data.sh.
@@ -51,6 +52,7 @@ min_wav_duration=0.1   # Minimum duration in second
 max_wav_duration=20    # Maximum duration in second
 
 # Enhancement model related
+enh_exp=    # Specify the direcotry path for enhancement experiment. If this option is specified, enh_tag is ignored.
 enh_tag=    # Suffix to the result dir for enhancement model training.
 enh_config= # Config for ehancement model training.
 enh_args=   # Arguments for enhancement model training, e.g., "--max_epoch 10".
@@ -70,6 +72,7 @@ inference_model=valid.si_snr.best.pth
 # Evaluation related
 scoring_protocol="STOI SDR SAR SIR"
 ref_channel=0
+score_with_asr=false
 
 # [Task dependent] Set the datadir name created by local/data.sh
 train_set=       # Name of training set.
@@ -96,6 +99,7 @@ Options:
     --gpu_inference # Whether to use gpu for inference (default="${gpu_inference}").
     --dumpdir       # Directory to dump features (default="${dumpdir}").
     --expdir        # Directory to save experiments (default="${expdir}").
+    --python         # Specify python to execute espnet commands (default="${python}").
 
     # Data preparation related
     --local_data_opts # The options given to local/data.sh (default="${local_data_opts}").
@@ -183,7 +187,9 @@ fi
 # The directory used for collect-stats mode
 enh_stats_dir="${expdir}/enh_stats_${fs}"
 # The directory used for training commands
+if [ -z "${enh_exp}" ]; then
 enh_exp="${expdir}/enh_${enh_tag}"
+fi
 
 if [ -n "${speed_perturb_factors}" ]; then
   enh_stats_dir="${enh_stats_dir}_sp"
@@ -411,7 +417,7 @@ if ! "${skip_train}"; then
 
         # shellcheck disable=SC2086
         ${train_cmd} JOB=1:"${_nj}" "${_logdir}"/stats.JOB.log \
-            python3 -m espnet2.bin.enh_train \
+            ${python} -m espnet2.bin.enh_train \
                 --collect_stats true \
                 --use_preprocessor true \
                 ${_train_data_param} \
@@ -427,7 +433,7 @@ if ! "${skip_train}"; then
             _opts+="--input_dir ${_logdir}/stats.${i} "
         done
         # shellcheck disable=SC2086
-        python3 -m espnet2.bin.aggregate_stats_dirs ${_opts} --output_dir "${enh_stats_dir}"
+        ${python} -m espnet2.bin.aggregate_stats_dirs ${_opts} --output_dir "${enh_stats_dir}"
 
     fi
 
@@ -486,15 +492,21 @@ if ! "${skip_train}"; then
 
 
         log "enh training started... log: '${enh_exp}/train.log'"
+        if [ "$(echo ${cuda_cmd} | sed -e 's/\s*\([a-zA-Z.]*\)\s.*/\1/')" == queue.pl ]; then
+            # SGE can't include "/" in a job name
+            jobname="$(basename ${enh_exp})"
+        else
+            jobname="${enh_exp}/train.log"
+        fi
         # shellcheck disable=SC2086
-        python3 -m espnet2.bin.launch \
-            --cmd "${cuda_cmd} --name ${enh_exp}/train.log" \
+        ${python} -m espnet2.bin.launch \
+            --cmd "${cuda_cmd} --name ${jobname}" \
             --log "${enh_exp}"/train.log \
             --ngpu "${ngpu}" \
             --num_nodes "${num_nodes}" \
             --init_file_prefix "${enh_exp}"/.dist_init_ \
             --multiprocessing_distributed true -- \
-            python3 -m espnet2.bin.enh_train \
+            ${python} -m espnet2.bin.enh_train \
                 ${_train_data_param} \
                 ${_valid_data_param} \
                 ${_train_shape_param} \
@@ -547,7 +559,7 @@ if ! "${skip_eval}"; then
             log "Ehancement started... log: '${_logdir}/enh_inference.*.log'"
             # shellcheck disable=SC2086
             ${_cmd} --gpu "${_ngpu}" JOB=1:"${_nj}" "${_logdir}"/enh_inference.JOB.log \
-                python3 -m espnet2.bin.enh_inference \
+                ${python} -m espnet2.bin.enh_inference \
                     --ngpu "${_ngpu}" \
                     --fs "${fs}" \
                     --data_path_and_name_and_type "${_data}/${_scp},speech_mix,${_type}" \
@@ -610,7 +622,7 @@ if ! "${skip_eval}"; then
             log "Scoring started... log: '${_logdir}/enh_scoring.*.log'"
             # shellcheck disable=SC2086
             ${_cmd} JOB=1:"${_nj}" "${_logdir}"/enh_scoring.JOB.log \
-                python3 -m espnet2.bin.enh_scoring \
+                ${python} -m espnet2.bin.enh_scoring \
                     --key_file "${_logdir}"/keys.JOB.scp \
                     --output_dir "${_logdir}"/output.JOB \
                     ${_ref_scp} \
@@ -618,12 +630,13 @@ if ! "${skip_eval}"; then
                     --ref_channel ${ref_channel}
 
             for spk in $(seq "${spk_num}"); do
-                for protocol in ${scoring_protocol}; do
+                for protocol in ${scoring_protocol} wav; do
                     for i in $(seq "${_nj}"); do
                         cat "${_logdir}/output.${i}/${protocol}_spk${spk}"
                     done | LC_ALL=C sort -k1 > "${_dir}/${protocol}_spk${spk}"
                 done
             done
+
 
             for protocol in ${scoring_protocol}; do
                 # shellcheck disable=SC2046
@@ -640,13 +653,195 @@ else
     log "Skip the evaluation stages"
 fi
 
+if "${score_with_asr}"; then
+
+    if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
+        log "Stage 9: Decode with pretrained ASR model: "
+        _cmd=${decode_cmd}
+        decode_asr_model=valid.acc.best.pth
+        asr_exp='/mnt/lustre/sjtu/home/cdl54/workspace/asr/develop/espnet/egs2/wsj/asr1/exp/asr_train_asr_transformer_raw_char'
+
+        if ${gpu_inference}; then
+            _cmd=${cuda_cmd}
+            _ngpu=1
+        else
+            _cmd=${decode_cmd}
+            _ngpu=0
+        fi
+
+
+        for dset in ${test_sets}; do
+            _data="${data_feats}/${dset}"
+            _inf_dir="${enh_exp}/enhanced_${dset}"
+            _dir="${enh_exp}/enhanced_${dset}/scoring_asr"
+
+            for spk in $(seq "${spk_num}"); do
+                _ddir=${_dir}/spk_${spk}
+                _logdir="${_ddir}/logdir"
+                _decode_dir="${_ddir}/decode"
+                mkdir -p ${_ddir}
+                mkdir -p "${_logdir}"
+                mkdir -p "${_decode_dir}"
+
+
+                # cp ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} ${_ddir}/wav_ori.scp
+                # pick 100 utterences for debug
+                head -100 ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} > ${_ddir}/wav.scp
+                cp data/${dset}/text_spk${spk} ${_ddir}/text
+                cp ${_data}/{spk2utt,utt2spk,utt2num_samples,feats_type} ${_ddir}
+                utils/fix_data_dir.sh "${_ddir}"
+                mv ${_ddir}/wav.scp ${_ddir}/wav_ori.scp
+
+                
+
+                scripts/audio/format_wav_scp.sh --nj "${infernece_nj}" --cmd "${_cmd}" \
+                    --out-filename "wav.scp" \
+                    --audio-format "${audio_format}" --fs "16k" \
+                    "${_ddir}/wav_ori.scp" "${_ddir}" \
+                    "${_ddir}/formated/logs/" "${_ddir}/formated/"
+
+                # 1. Split the key file
+                key_file=${_ddir}/wav.scp
+                _nj=$(min "${infernece_nj}" "$(<${key_file} wc -l)")
+
+                split_scps=""
+                for n in $(seq "${_nj}"); do
+                    split_scps+=" ${_logdir}/keys.${n}.scp"
+                done
+                # shellcheck disable=SC2086
+                utils/split_scp.pl "${key_file}" ${split_scps}
+
+                log "Decoding started... log: '${_logdir}/asr_inference.*.log'"
+                # shellcheck disable=SC2086
+                ${_cmd} --gpu "${_ngpu}" JOB=1:"${_nj}" "${_logdir}"/asr_inference.JOB.log \
+                    python3 -m espnet2.bin.asr_inference \
+                        --ngpu "${_ngpu}" \
+                        --data_path_and_name_and_type "${_ddir}/wav.scp,speech,sound" \
+                        --key_file "${_logdir}"/keys.JOB.scp \
+                        --asr_train_config "${asr_exp}"/config.yaml \
+                        --asr_model_file "${asr_exp}"/"${decode_asr_model}" \
+                        --output_dir "${_logdir}"/output.JOB 
+
+                for f in token token_int score text; do
+                    for i in $(seq "${_nj}"); do
+                        cat "${_logdir}/output.${i}/1best_recog/${f}"
+                    done | LC_ALL=C sort -k1 >"${_decode_dir}/${f}"
+                done
+            done
+
+        done
+    fi
+
+    if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
+        log "Stage 10: Scoring with pretrained ASR model: "
+
+        _cmd=${decode_cmd}
+        nlsyms_txt='./data/nlsyms.txt'
+        cleaner=none
+
+        if ${gpu_inference}; then
+            _cmd=${cuda_cmd}
+            _ngpu=1
+        else
+            _cmd=${decode_cmd}
+            _ngpu=0
+        fi
+
+
+        for dset in ${test_sets}; do
+            _inf_dir="${enh_exp}/enhanced_${dset}"
+            _dir="${enh_exp}/enhanced_${dset}/scoring_asr"
+
+            for spk in $(seq "${spk_num}"); do
+                _ddir=${_dir}/spk_${spk}
+                _logdir="${_ddir}/logdir"
+                _decode_dir="${_ddir}/decode"
+
+                for _type in cer wer; do
+
+                    _scoredir="${_ddir}/score_${_type}"
+                    mkdir -p "${_scoredir}"
+
+                    if [ "${_type}" = wer ]; then
+                        # Tokenize text to word level
+                        paste \
+                            <(<"${_ddir}/text" \
+                                python3 -m espnet2.bin.tokenize_text  \
+                                    -f 2- --input - --output - \
+                                    --token_type word \
+                                    --non_linguistic_symbols "${nlsyms_txt}" \
+                                    --remove_non_linguistic_symbols true \
+                                    --cleaner "${cleaner}" \
+                                    ) \
+                            <(<"${_ddir}/text" awk '{ print "(" $1 ")" }') \
+                                >"${_scoredir}/ref.trn"
+
+                        # NOTE(kamo): Don't use cleaner for hyp
+                        paste \
+                            <(<"${_decode_dir}/text"  \
+                                python3 -m espnet2.bin.tokenize_text  \
+                                    -f 2- --input - --output - \
+                                    --token_type word \
+                                    --non_linguistic_symbols "${nlsyms_txt}" \
+                                    --remove_non_linguistic_symbols true \
+                                    ) \
+                            <(<"${_ddir}/text" awk '{ print "(" $1 ")" }') \
+                                >"${_scoredir}/hyp.trn"
+                    elif [ "${_type}" = cer ]; then
+                        # Tokenize text to char level
+                        paste \
+                            <(<"${_ddir}/text" \
+                                python3 -m espnet2.bin.tokenize_text  \
+                                    -f 2- --input - --output - \
+                                    --token_type char \
+                                    --non_linguistic_symbols "${nlsyms_txt}" \
+                                    --remove_non_linguistic_symbols true \
+                                    --cleaner "${cleaner}" \
+                                    ) \
+                            <(<"${_ddir}/text" awk '{ print "(" $1 ")" }') \
+                                >"${_scoredir}/ref.trn"
+
+                        # NOTE(kamo): Don't use cleaner for hyp
+                        paste \
+                            <(<"${_decode_dir}/text"  \
+                                python3 -m espnet2.bin.tokenize_text  \
+                                    -f 2- --input - --output - \
+                                    --token_type char \
+                                    --non_linguistic_symbols "${nlsyms_txt}" \
+                                    --remove_non_linguistic_symbols true \
+                                    ) \
+                            <(<"${_ddir}/text" awk '{ print "(" $1 ")" }') \
+                                >"${_scoredir}/hyp.trn"
+                    fi
+
+                    sclite \
+                        -r "${_scoredir}/ref.trn" trn \
+                        -h "${_scoredir}/hyp.trn" trn \
+                        -i rm -o all stdout > "${_scoredir}/result.txt"
+
+                    log "Write ${_type} result in ${_scoredir}/result.txt"
+                    grep -e Avg -e SPKR -m 2 "${_scoredir}/result.txt"
+                done
+
+            done
+
+        done
+    fi
+
+else
+
+    log "Skip the stages for scoring with asr"
+
+fi
+
+
 
 packed_model="${enh_exp}/${enh_exp##*/}_${inference_model%.*}.zip"
 if ! "${skip_upload}"; then
-    if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
-        log "Stage 9: Pack model: ${packed_model}"
+    if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 9 ]; then
+        log "Stage 11: Pack model: ${packed_model}"
 
-        python3 -m espnet2.bin.pack enh \
+        ${python} -m espnet2.bin.pack enh \
             --train_config "${enh_exp}"/config.yaml \
             --model_file "${enh_exp}"/"${inference_model}" \
             --option "${enh_exp}"/RESULTS.TXT \
