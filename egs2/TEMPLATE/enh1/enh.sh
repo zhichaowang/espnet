@@ -694,7 +694,7 @@ if "${score_with_asr}"; then
 
                 
 
-                scripts/audio/format_wav_scp.sh --nj "${infernece_nj}" --cmd "${_cmd}" \
+                scripts/audio/format_wav_scp.sh --nj "${inference_nj}" --cmd "${_cmd}" \
                     --out-filename "wav.scp" \
                     --audio-format "${audio_format}" --fs "16k" \
                     "${_ddir}/wav_ori.scp" "${_ddir}" \
@@ -702,7 +702,7 @@ if "${score_with_asr}"; then
 
                 # 1. Split the key file
                 key_file=${_ddir}/wav.scp
-                _nj=$(min "${infernece_nj}" "$(<${key_file} wc -l)")
+                _nj=$(min "${inference_nj}" "$(<${key_file} wc -l)")
 
                 split_scps=""
                 for n in $(seq "${_nj}"); do
