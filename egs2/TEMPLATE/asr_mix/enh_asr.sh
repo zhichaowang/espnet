@@ -1099,6 +1099,7 @@ if ! "${skip_eval}"; then
                         done
                 fi
 
+                # FIXME(Jing): cat the files of each spk
                 sclite \
                     -r "${_scoredir}/ref.trn" trn \
                     -h "${_scoredir}/hyp.trn" trn \
