@@ -2,15 +2,15 @@
 
 # ESPnet: end-to-end speech processing toolkit
 
-|system/pytorch ver.|1.0.1|1.1.0|1.2.0|1.3.1|1.4.0|1.5.1|
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-|ubuntu18/python3.8/pip||||||[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|
-|ubuntu18/python3.7/pip|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|
-|ubuntu18/python3.6/conda||||||[![CircleCI](https://circleci.com/gh/espnet/espnet.svg?style=svg)](https://circleci.com/gh/espnet/espnet)|
-|ubuntu16/python3.6/conda||||||[![CircleCI](https://circleci.com/gh/espnet/espnet.svg?style=svg)](https://circleci.com/gh/espnet/espnet)|
-|debian9/python3.6/conda||||||[![CircleCI](https://circleci.com/gh/espnet/espnet.svg?style=svg)](https://circleci.com/gh/espnet/espnet)|
-|centos7/python3.6/conda||||||[![CircleCI](https://circleci.com/gh/espnet/espnet.svg?style=svg)](https://circleci.com/gh/espnet/espnet)|
-|[docs/coverage] python3.8||||||[![Build Status](https://travis-ci.org/espnet/espnet.svg?branch=master)](https://travis-ci.org/espnet/espnet)|
+|system/pytorch ver.|1.0.1|1.1.0|1.2.0|1.3.1|1.4.0|1.5.1|1.6.0|
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+|ubuntu18/python3.8/pip|||||||[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|
+|ubuntu18/python3.7/pip|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|[![Github Actions](https://github.com/espnet/espnet/workflows/CI/badge.svg)](https://github.com/espnet/espnet/actions)|
+|ubuntu18/python3.6/conda|||||||[![CircleCI](https://circleci.com/gh/espnet/espnet.svg?style=svg)](https://circleci.com/gh/espnet/espnet)|
+|ubuntu16/python3.6/conda|||||||[![CircleCI](https://circleci.com/gh/espnet/espnet.svg?style=svg)](https://circleci.com/gh/espnet/espnet)|
+|debian9/python3.6/conda|||||||[![CircleCI](https://circleci.com/gh/espnet/espnet.svg?style=svg)](https://circleci.com/gh/espnet/espnet)|
+|centos7/python3.6/conda|||||||[![CircleCI](https://circleci.com/gh/espnet/espnet.svg?style=svg)](https://circleci.com/gh/espnet/espnet)|
+|[docs/coverage] python3.8|||||||[![Build Status](https://travis-ci.org/espnet/espnet.svg?branch=master)](https://travis-ci.org/espnet/espnet)|
 
 [![PyPI version](https://badge.fury.io/py/espnet.svg)](https://badge.fury.io/py/espnet)
 [![Python Versions](https://img.shields.io/pypi/pyversions/espnet.svg)](https://pypi.org/project/espnet/)
@@ -44,7 +44,6 @@ and also follows [Kaldi](http://kaldi-asr.org/) style data processing, feature e
 
 
 ### ASR: Automatic Speech Recognition
-
 - **State-of-the-art performance** in several ASR benchmarks (comparable/superior to hybrid DNN/HMM and CTC)
 - **Hybrid CTC/attention** based end-to-end ASR
   - Fast/accurate training with CTC/attention multitask training
@@ -59,16 +58,26 @@ and also follows [Kaldi](http://kaldi-asr.org/) style data processing, feature e
 - CTC forced alignment
 
 ### TTS: Text-to-speech
-- Tacotron2 based end-to-end TTS
-- Transformer based end-to-end TTS
-- Feed-forward Transformer (a.k.a. FastSpeech) based end-to-end TTS
-- Multi-speaker TTS with pretrained speaker embedding
-- Support phoneme-based TTS for En, Jp, and Zn
-- Integration with neural vocoders such as WaveNet, ParallelWaveGAN, and (Multi-band) MelGAN
+- Tacotron2
+- Transformer-TTS
+- FastSpeech
+- FastSpeech2 (in ESPnet2)
+- Multi-speaker model with pretrained speaker embedding
+- Multi-speaker model with GST (in ESPnet2) 
+- Phoneme-based training (En, Jp, and Zn)
+- Integration with neural vocoders (WaveNet, ParallelWaveGAN, and MelGAN)
 
-> To train the neural vocoder, please check the following repositories:
-> - [kan-bayashi/ParallelWaveGAN](https://github.com/kan-bayashi/ParallelWaveGAN)
-> - [r9y9/wavenet_vocoder](https://github.com/r9y9/wavenet_vocoder)
+You can try demo online now!
+- Real-time TTS demo with ESPnet2  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/espnet/notebook/blob/master/espnet2_tts_realtime_demo.ipynb)
+- Real-time TTS demo with ESPnet1  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/espnet/notebook/blob/master/tts_realtime_demo.ipynb)
+
+To train the neural vocoder, please check the following repositories:
+- [kan-bayashi/ParallelWaveGAN](https://github.com/kan-bayashi/ParallelWaveGAN)
+- [r9y9/wavenet_vocoder](https://github.com/r9y9/wavenet_vocoder)
+
+> **NOTE**: 
+> - We are moving on ESPnet2-based development for TTS.  
+> - If you are beginner, we recommend using [ESPnet2-TTS](https://github.com/espnet/espnet/tree/master/egs2/TEMPLATE/tts1). 
 
 ### ST: Speech Translation & MT: Machine Translation
 - **State-of-the-art performance** in several ST benchmarks (comparable/superior to cascaded ASR and MT)
@@ -76,8 +85,8 @@ and also follows [Kaldi](http://kaldi-asr.org/) style data processing, feature e
 - Transformer based end-to-end MT (new!)
 
 ### VC: Voice conversion
-- End-to-end VC based on cascaded ASR+TTS (new!)
-- Baseline system for Voice Conversion Challenge 2020!
+- Transformer and Tacotron2 based parallel VC using melspectrogram (new!)
+- End-to-end VC based on cascaded ASR+TTS (Baseline system for Voice Conversion Challenge 2020!)
 
 ### DNN Framework
 - Flexible network architecture thanks to chainer and pytorch
@@ -92,6 +101,7 @@ See [ESPnet2](https://espnet.github.io/espnet/espnet2_tutorial.html).
 - Multi GPUs training on single/multi nodes (Distributed training)
 - A template recipe which can be applied for all corpora
 - Possible to train any size of corpus without cpu memory error
+- (Under development) More smart system for [providing pretrained models and Python API for inference](https://github.com/espnet/espnet_model_zoo)
 
 ## Installation
 - If you intend to do full experiments including DNN training, then see [Installation](https://espnet.github.io/espnet/installation.html).
@@ -332,10 +342,11 @@ If you want to use the above pretrained vocoders, please exactly match the featu
 
 <details><summary>expand</summary><div>
 
-(**New!**) We made a new real-time E2E-TTS demonstration in Google Colab.
+We made a new real-time E2E-TTS demonstration in Google Colab.  
 Please access the notebook from the following button and enjoy the real-time synthesis!
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/espnet/notebook/blob/master/tts_realtime_demo.ipynb)
+- Real-time TTS demo with ESPnet2  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/espnet/notebook/blob/master/espnet2_tts_realtime_demo.ipynb)
+- Real-time TTS demo with ESPnet1  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/espnet/notebook/blob/master/tts_realtime_demo.ipynb)
 
 ---
 
@@ -418,8 +429,15 @@ Available pretrained vocoder models in the demo script are listed as follows:
 
 ### VC results
 
-The [Voice Conversion Challenge 2020](http://www.vc-challenge.org/) (VCC2020) adopts ESPnet to build an end-to-end based baseline system. In VCC2020, the objective is intra/cross lingual nonparallel VC. A cascade method of ASR+TTS is developed.
-You can download converted samples [here](https://drive.google.com/drive/folders/1oeZo83GrOgtqxGwF7KagzIrfjr8X59Ue?usp=sharing).
+- Transformer and Tacotron2 based VC
+
+You can listen to some samples on the [demo webpage](https://unilight.github.io/Publication-Demos/publications/transformer-vc/).
+
+- Cascade ASR+TTS as one of the baseline systems of VCC2020
+
+The [Voice Conversion Challenge 2020](http://www.vc-challenge.org/) (VCC2020) adopts ESPnet to build an end-to-end based baseline system.
+In VCC2020, the objective is intra/cross lingual nonparallel VC.
+You can download converted samples of the cascade ASR+TTS baseline system [here](https://drive.google.com/drive/folders/1oeZo83GrOgtqxGwF7KagzIrfjr8X59Ue?usp=sharing).
 
 
 ### CTC Forced Alignment demo

@@ -32,10 +32,11 @@ skip_upload=true     # Skip packing and uploading stages
 ngpu=1               # The number of gpus ("0" uses cpu, otherwise use gpu).
 num_nodes=1          # The number of nodes
 nj=32                # The number of parallel jobs.
-inference_nj=32         # The number of parallel jobs in decoding.
-gpu_inference=false     # Whether to perform gpu decoding.
+inference_nj=32      # The number of parallel jobs in decoding.
+gpu_inference=false  # Whether to perform gpu decoding.
 dumpdir=dump         # Directory to dump features.
 expdir=exp           # Directory to save experiments.
+python=python3       # Specify python to execute espnet commands
 
 # Data preparation related
 local_data_opts= # The options given to local/data.sh.
@@ -125,10 +126,11 @@ Options:
     --ngpu           # The number of gpus ("0" uses cpu, otherwise use gpu, default="${ngpu}").
     --num_nodes      # The number of nodes
     --nj             # The number of parallel jobs (default="${nj}").
-    --inference_nj      # The number of parallel jobs in decoding (default="${inference_nj}").
-    --gpu_inference     # Whether to perform gpu decoding (default="${gpu_inference}").
+    --inference_nj   # The number of parallel jobs in decoding (default="${inference_nj}").
+    --gpu_inference  # Whether to perform gpu decoding (default="${gpu_inference}").
     --dumpdir        # Directory to dump features (default="${dumpdir}").
     --expdir         # Directory to save experiments (default="${expdir}").
+    --python         # Specify python to execute espnet commands (default="${python}").
 
     # Data preparation related
     --local_data_opts # The options given to local/data.sh (default="${local_data_opts}").
@@ -199,6 +201,8 @@ EOF
 )
 
 log "$0 $*"
+# Save command line args for logging (they will be lost after utils/parse_options.sh)
+run_args=$(pyscripts/utils/print_args.py $0 "$@")
 . utils/parse_options.sh
 
 if [ $# -ne 0 ]; then
@@ -555,7 +559,7 @@ if ! "${skip_data_prep}"; then
         # The first symbol in token_list must be "<blank>" and the last must be also sos/eos:
         # 0 is reserved for CTC-blank for ASR and also used as ignore-index in the other task
 
-        python3 -m espnet2.bin.tokenize_text  \
+        ${python} -m espnet2.bin.tokenize_text  \
             --token_type "${token_type}" \
             --input "${data_feats}/srctexts" --output "${token_list}" ${_opts} \
             --field 2- \
@@ -569,7 +573,7 @@ if ! "${skip_data_prep}"; then
         # Create word-list for word-LM training
         if ${use_word_lm}; then
             log "Generate word level token_list from ${data_feats}/srctexts"
-            python3 -m espnet2.bin.tokenize_text \
+            ${python} -m espnet2.bin.tokenize_text \
                 --token_type word \
                 --input "${data_feats}/srctexts" --output "${lm_token_list}" \
                 --field 2- \
@@ -625,14 +629,17 @@ if ! "${skip_train}"; then
             # shellcheck disable=SC2086
             utils/split_scp.pl "${key_file}" ${split_scps}
 
-            # 2. Submit jobs
+            # 2. Generate run.sh
+            log "Generate '${lm_stats_dir}/run.sh'. You can resume the process from stage 6 using this script"
+            mkdir -p "${lm_stats_dir}"; echo "${run_args} --stage 6 \"\$@\"; exit \$?" > "${lm_stats_dir}/run.sh"; chmod +x "${lm_stats_dir}/run.sh"
+
+            # 3. Submit jobs
             log "LM collect-stats started... log: '${_logdir}/stats.*.log'"
             # NOTE: --*_shape_file doesn't require length information if --batch_type=unsorted,
             #       but it's used only for deciding the sample ids.
-
             # shellcheck disable=SC2086
             ${train_cmd} JOB=1:"${_nj}" "${_logdir}"/stats.JOB.log \
-                python3 -m espnet2.bin.lm_train \
+                ${python} -m espnet2.bin.lm_train \
                     --collect_stats true \
                     --use_preprocessor true \
                     --bpemodel "${bpemodel}" \
@@ -648,13 +655,13 @@ if ! "${skip_train}"; then
                     --output_dir "${_logdir}/stats.JOB" \
                     ${_opts} ${lm_args}
 
-            # 3. Aggregate shape files
+            # 4. Aggregate shape files
             _opts=
             for i in $(seq "${_nj}"); do
                 _opts+="--input_dir ${_logdir}/stats.${i} "
             done
             # shellcheck disable=SC2086
-            python3 -m espnet2.bin.aggregate_stats_dirs ${_opts} --output_dir "${lm_stats_dir}"
+            ${python} -m espnet2.bin.aggregate_stats_dirs ${_opts} --output_dir "${lm_stats_dir}"
 
             # Append the num-tokens at the last dimensions. This is used for batch-bins count
             <"${lm_stats_dir}/train/text_shape" \
@@ -685,7 +692,7 @@ if ! "${skip_train}"; then
                 _split_dir="${lm_stats_dir}/splits${num_splits_lm}"
                 if [ ! -f "${_split_dir}/.done" ]; then
                     rm -f "${_split_dir}/.done"
-                    python3 -m espnet2.bin.split_scps \
+                    ${python} -m espnet2.bin.split_scps \
                       --scps "${data_feats}/srctexts" "${lm_stats_dir}/train/text_shape.${lm_token_type}" \
                       --num_splits "${num_splits_lm}" \
                       --output_dir "${_split_dir}"
@@ -705,16 +712,26 @@ if ! "${skip_train}"; then
 
             # NOTE(kamo): --fold_length is used only if --batch_type=folded and it's ignored in the other case
 
+            log "Generate '${lm_exp}/run.sh'. You can resume the process from stage 7 using this script"
+            mkdir -p "${lm_exp}"; echo "${run_args} --stage 7 \"\$@\"; exit \$?" > "${lm_exp}/run.sh"; chmod +x "${lm_exp}/run.sh"
+
             log "LM training started... log: '${lm_exp}/train.log'"
+            if echo "${cuda_cmd}" | grep -e queue.pl -e queue-freegpu.pl &> /dev/null; then
+                # SGE can't include "/" in a job name
+                jobname="$(basename ${lm_exp})"
+            else
+                jobname="${lm_exp}/train.log"
+            fi
+
             # shellcheck disable=SC2086
-            python3 -m espnet2.bin.launch \
-                --cmd "${cuda_cmd} --name ${lm_exp}/train.log" \
+            ${python} -m espnet2.bin.launch \
+                --cmd "${cuda_cmd} --name ${jobname}" \
                 --log "${lm_exp}"/train.log \
                 --ngpu "${ngpu}" \
                 --num_nodes "${num_nodes}" \
                 --init_file_prefix "${asr_exp}"/.dist_init_ \
                 --multiprocessing_distributed true -- \
-                python3 -m espnet2.bin.lm_train \
+                ${python} -m espnet2.bin.lm_train \
                     --ngpu "${ngpu}" \
                     --use_preprocessor true \
                     --bpemodel "${bpemodel}" \
@@ -740,7 +757,7 @@ if ! "${skip_train}"; then
             log "Perplexity calculation started... log: '${lm_exp}/perplexity_test/lm_calc_perplexity.log'"
             # shellcheck disable=SC2086
             ${cuda_cmd} --gpu "${ngpu}" "${lm_exp}"/perplexity_test/lm_calc_perplexity.log \
-                python3 -m espnet2.bin.lm_calc_perplexity \
+                ${python} -m espnet2.bin.lm_calc_perplexity \
                     --ngpu "${ngpu}" \
                     --data_path_and_name_and_type "${lm_test_text},text,text" \
                     --train_config "${lm_exp}"/config.yaml \
@@ -804,7 +821,11 @@ if ! "${skip_train}"; then
         # shellcheck disable=SC2086
         utils/split_scp.pl "${key_file}" ${split_scps}
 
-        # 2. Submit jobs
+        # 2. Generate run.sh
+        log "Generate '${asr_stats_dir}/run.sh'. You can resume the process from stage 9 using this script"
+        mkdir -p "${asr_stats_dir}"; echo "${run_args} --stage 9 \"\$@\"; exit \$?" > "${asr_stats_dir}/run.sh"; chmod +x "${asr_stats_dir}/run.sh"
+
+        # 3. Submit jobs
         log "ASR collect-stats started... log: '${_logdir}/stats.*.log'"
 
         # NOTE: --*_shape_file doesn't require length information if --batch_type=unsorted,
@@ -812,7 +833,7 @@ if ! "${skip_train}"; then
 
         # shellcheck disable=SC2086
         ${train_cmd} JOB=1:"${_nj}" "${_logdir}"/stats.JOB.log \
-            python3 -m espnet2.bin.asr_train \
+            ${python} -m espnet2.bin.asr_train \
                 --collect_stats true \
                 --use_preprocessor true \
                 --bpemodel "${bpemodel}" \
@@ -830,13 +851,13 @@ if ! "${skip_train}"; then
                 --output_dir "${_logdir}/stats.JOB" \
                 ${_opts} ${asr_args}
 
-        # 3. Aggregate shape files
+        # 4. Aggregate shape files
         _opts=
         for i in $(seq "${_nj}"); do
             _opts+="--input_dir ${_logdir}/stats.${i} "
         done
         # shellcheck disable=SC2086
-        python3 -m espnet2.bin.aggregate_stats_dirs ${_opts} --output_dir "${asr_stats_dir}"
+        ${python} -m espnet2.bin.aggregate_stats_dirs ${_opts} --output_dir "${asr_stats_dir}"
 
         # Append the num-tokens at the last dimensions. This is used for batch-bins count
         <"${asr_stats_dir}/train/text_shape" \
@@ -889,7 +910,7 @@ if ! "${skip_train}"; then
             _split_dir="${asr_stats_dir}/splits${num_splits_asr}"
             if [ ! -f "${_split_dir}/.done" ]; then
                 rm -f "${_split_dir}/.done"
-                python3 -m espnet2.bin.split_scps \
+                ${python} -m espnet2.bin.split_scps \
                   --scps \
                       "${_asr_train_dir}/${_scp}" \
                       "${_asr_train_dir}/text" \
@@ -915,18 +936,27 @@ if ! "${skip_train}"; then
             _opts+="--train_shape_file ${asr_stats_dir}/train/text_shape.${token_type} "
         fi
 
-        # NOTE(kamo): --fold_length is used only if --batch_type=folded and it's ignored in the other case
+        log "Generate '${asr_exp}/run.sh'. You can resume the process from stage 10 using this script"
+        mkdir -p "${asr_exp}"; echo "${run_args} --stage 10 \"\$@\"; exit \$?" > "${asr_exp}/run.sh"; chmod +x "${asr_exp}/run.sh"
 
+        # NOTE(kamo): --fold_length is used only if --batch_type=folded and it's ignored in the other case
         log "ASR training started... log: '${asr_exp}/train.log'"
+        if echo "${cuda_cmd}" | grep -e queue.pl -e queue-freegpu.pl &> /dev/null; then
+            # SGE can't include "/" in a job name
+            jobname="$(basename ${asr_exp})"
+        else
+            jobname="${asr_exp}/train.log"
+        fi
+
         # shellcheck disable=SC2086
-        python3 -m espnet2.bin.launch \
-            --cmd "${cuda_cmd} --name ${asr_exp}/train.log" \
+        ${python} -m espnet2.bin.launch \
+            --cmd "${cuda_cmd} --name ${jobname}" \
             --log "${asr_exp}"/train.log \
             --ngpu "${ngpu}" \
             --num_nodes "${num_nodes}" \
             --init_file_prefix "${asr_exp}"/.dist_init_ \
             --multiprocessing_distributed true -- \
-            python3 -m espnet2.bin.asr_train \
+            ${python} -m espnet2.bin.asr_train \
                 --use_preprocessor true \
                 --bpemodel "${bpemodel}" \
                 --token_type "${token_type}" \
@@ -1008,9 +1038,13 @@ if ! "${skip_eval}"; then
             fi
         fi
 
+        # 2. Generate run.sh
+        log "Generate '${asr_exp}/${inference_tag}/run.sh'. You can resume the process from stage 11 using this script"
+        mkdir -p "${asr_exp}/${inference_tag}"; echo "${run_args} --stage 11 \"\$@\"; exit \$?" > "${asr_exp}/${inference_tag}/run.sh"; chmod +x "${asr_exp}/${inference_tag}/run.sh"
+
         for dset in ${test_sets}; do
             _data="${data_feats}/${dset}"
-            _dir="${asr_exp}/inference_${dset}_${inference_tag}"
+            _dir="${asr_exp}/${inference_tag}/${dset}"
             _logdir="${_dir}/logdir"
             mkdir -p "${_logdir}"
 
@@ -1037,7 +1071,7 @@ if ! "${skip_eval}"; then
             log "Decoding started... log: '${_logdir}/asr_inference.*.log'"
             # shellcheck disable=SC2086
             ${_cmd} --gpu "${_ngpu}" JOB=1:"${_nj}" "${_logdir}"/asr_inference.JOB.log \
-                python3 -m espnet2.bin.asr_inference \
+                ${python} -m espnet2.bin.asr_inference \
                     --ngpu "${_ngpu}" \
                     --data_path_and_name_and_type "${_data}/${_scp},speech,${_type}" \
                     --key_file "${_logdir}"/keys.JOB.scp \
@@ -1065,7 +1099,7 @@ if ! "${skip_eval}"; then
 
         for dset in ${test_sets}; do
             _data="${data_feats}/${dset}"
-            _dir="${asr_exp}/inference_${dset}_${inference_tag}"
+            _dir="${asr_exp}/${inference_tag}/${dset}"
 
             for _type in cer wer ter; do
                 [ "${_type}" = ter ] && [ ! -f "${bpemodel}" ] && continue
@@ -1077,7 +1111,7 @@ if ! "${skip_eval}"; then
                     # Tokenize text to word level
                     paste \
                         <(<"${_data}/text" \
-                              python3 -m espnet2.bin.tokenize_text  \
+                              ${python} -m espnet2.bin.tokenize_text  \
                                   -f 2- --input - --output - \
                                   --token_type word \
                                   --non_linguistic_symbols "${nlsyms_txt}" \
@@ -1090,7 +1124,7 @@ if ! "${skip_eval}"; then
                     # NOTE(kamo): Don't use cleaner for hyp
                     paste \
                         <(<"${_dir}/text"  \
-                              python3 -m espnet2.bin.tokenize_text  \
+                              ${python} -m espnet2.bin.tokenize_text  \
                                   -f 2- --input - --output - \
                                   --token_type word \
                                   --non_linguistic_symbols "${nlsyms_txt}" \
@@ -1104,7 +1138,7 @@ if ! "${skip_eval}"; then
                     # Tokenize text to char level
                     paste \
                         <(<"${_data}/text" \
-                              python3 -m espnet2.bin.tokenize_text  \
+                              ${python} -m espnet2.bin.tokenize_text  \
                                   -f 2- --input - --output - \
                                   --token_type char \
                                   --non_linguistic_symbols "${nlsyms_txt}" \
@@ -1117,7 +1151,7 @@ if ! "${skip_eval}"; then
                     # NOTE(kamo): Don't use cleaner for hyp
                     paste \
                         <(<"${_dir}/text"  \
-                              python3 -m espnet2.bin.tokenize_text  \
+                              ${python} -m espnet2.bin.tokenize_text  \
                                   -f 2- --input - --output - \
                                   --token_type char \
                                   --non_linguistic_symbols "${nlsyms_txt}" \
@@ -1130,7 +1164,7 @@ if ! "${skip_eval}"; then
                     # Tokenize text using BPE
                     paste \
                         <(<"${_data}/text" \
-                              python3 -m espnet2.bin.tokenize_text  \
+                              ${python} -m espnet2.bin.tokenize_text  \
                                   -f 2- --input - --output - \
                                   --token_type bpe \
                                   --bpemodel "${bpemodel}" \
@@ -1142,7 +1176,7 @@ if ! "${skip_eval}"; then
                     # NOTE(kamo): Don't use cleaner for hyp
                     paste \
                         <(<"${_dir}/text" \
-                              python3 -m espnet2.bin.tokenize_text  \
+                              ${python} -m espnet2.bin.tokenize_text  \
                                   -f 2- --input - --output - \
                                   --token_type bpe \
                                   --bpemodel "${bpemodel}" \
@@ -1190,7 +1224,7 @@ if ! "${skip_upload}"; then
             _opts+="--option ${bpemodel} "
         fi
         # shellcheck disable=SC2086
-        python -m espnet2.bin.pack asr \
+        ${python} -m espnet2.bin.pack asr \
             --asr_train_config "${asr_exp}"/config.yaml \
             --asr_model_file "${asr_exp}"/"${inference_asr_model}" \
             ${_opts} \

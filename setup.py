@@ -18,6 +18,7 @@ requirements = {
         "editdistance==0.5.2",
         "gdown",
         "espnet_model_zoo",
+        "ctc-segmentation",
         # DNN related packages are installed by Makefile
         # 'torch==1.0.1'
         # "chainer==6.0.0",
@@ -32,6 +33,7 @@ requirements = {
         # FIXME(kamo): Sentencepiece 0.1.90 breaks backwardcompatibility?
         "sentencepiece<0.1.90,>=0.1.82",
         "nltk>=3.4.5",
+        "morfessor",
         # File IO related
         "PyYAML>=5.1.2",
         "soundfile>=0.10.2",
@@ -40,6 +42,7 @@ requirements = {
         # TTS related
         "inflect>=1.0.0",
         "unidecode>=1.0.22",
+        "pyworld>=0.2.10",
         "nnmnkwii",
         "espnet_tts_frontend",
         # ASR frontend related
@@ -49,6 +52,9 @@ requirements = {
         "torch_complex",
         "pytorch_wpe",
         "mir-eval>=0.6",
+        # VC related
+        "fastdtw",
+        "pyworld",
     ],
     "setup": ["numpy", "pytest-runner"],
     "test": [
@@ -82,7 +88,9 @@ try:
         requirements["install"].append("torch_optimizer")
 
     if LooseVersion(torch.__version__) >= LooseVersion("1.6.0"):
-        pass
+        # Due to https://github.com/pytorch/pytorch/issues/42213,
+        # use torchaudio.functional.istft instead of torch.functional.istft
+        requirements["install"].append("torchaudio==0.6.0")
     elif LooseVersion(torch.__version__) >= LooseVersion("1.5.1"):
         requirements["install"].append("torchaudio==0.5.1")
     elif LooseVersion(torch.__version__) >= LooseVersion("1.5.0"):
@@ -110,7 +118,7 @@ extras_require = {
 dirname = os.path.dirname(__file__)
 setup(
     name="espnet",
-    version="0.8.0",
+    version="0.9.1",
     url="http://github.com/espnet/espnet",
     author="Shinji Watanabe",
     author_email="shinjiw@ieee.org",
