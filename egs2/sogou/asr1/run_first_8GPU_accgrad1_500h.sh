@@ -5,13 +5,12 @@ set -e
 set -u
 set -o pipefail
 
-train_set=train_sogou_fbank_11w_and_S1_nodup_nodev_LID
-dev_set=train_sogou_fbank_11w_and_S1_dev_LID_200h
-eval_sets="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou testmeeting_cat_agc-1218_sogou testreport_cat_agc_1-2m-1218_sogou testreport_cat_agc_2-4m-1218_sogou testreport_cat_agc_4-6m-1218_sogou testNewLong_sogou test0918_sogou"
-#eval_sets="testmeeting_cat_agc-1218_sogou testreport_cat_agc_1-2m-1218_sogou testreport_cat_agc_2-4m-1218_sogou testreport_cat_agc_4-6m-1218_sogou test0918_sogou"
+train_set=train_sogou_fbank_500h
+dev_set=test8000_sogou
+eval_sets="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou testNewLong_sogou testmeeting_cat_agc-1218_sogou"
 
-asr_config=conf/train_asr_transformer_first_16GPU_accgrad1_11wh.yaml
-decode_config=conf/decode_asr_transformer_lm0.2.yaml
+asr_config=conf/train_asr_transformer_first_8GPU_accgrad1.yaml
+decode_config=conf/decode_asr_transformer.yaml
 
 lm_config=conf/train_lm.yaml
 use_lm=true
@@ -21,7 +20,7 @@ use_wordlm=false
 # (train_set will be "${train_set}_sp" if speed_perturb_factors is specified)
 speed_perturb_factors=
 
-./asr_first_16GPU_accgrad1_11wh_mixLID.sh              \
+./asr_first_8GPU_accgrad1_500h.sh                \
     --audio_format wav                                 \
     --feats_type extracted                             \
     --token_type char                                  \

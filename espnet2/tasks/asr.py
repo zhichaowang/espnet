@@ -20,6 +20,7 @@ from espnet2.asr.encoder.abs_encoder import AbsEncoder
 from espnet2.asr.encoder.rnn_encoder import RNNEncoder
 from espnet2.asr.encoder.transformer_encoder import TransformerEncoder
 from espnet2.asr.encoder.conformer_encoder import ConformerEncoder
+from espnet2.asr.decoder.conformer_decoder import ConformerDecoder
 from espnet2.asr.encoder.vgg_rnn_encoder import VGGRNNEncoder
 from espnet2.asr.espnet_model import ESPnetASRModel
 from espnet2.asr.frontend.abs_frontend import AbsFrontend
@@ -72,7 +73,7 @@ encoder_choices = ClassChoices(
 )
 decoder_choices = ClassChoices(
     "decoder",
-    classes=dict(transformer=TransformerDecoder, rnn=RNNDecoder),
+    classes=dict(transformer=TransformerDecoder, conformer=ConformerDecoder, rnn=RNNDecoder),
     type_check=AbsDecoder,
     default="rnn",
 )

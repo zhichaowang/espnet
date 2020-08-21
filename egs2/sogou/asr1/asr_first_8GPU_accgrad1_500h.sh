@@ -23,7 +23,7 @@ min() {
 SECONDS=0
 
 # General configuration
-stage=12          # Processes starts from the specified stage.
+stage=10          # Processes starts from the specified stage.
 stop_stage=12    # Processes is stopped at the specified stage.
 ngpu=8           # The number of gpus ("0" uses cpu, otherwise use gpu).
 num_nodes=1      # The number of nodes
@@ -59,7 +59,7 @@ bpe_char_cover=1.0  # character coverage when modeling BPE
 
 # Language model related
 use_lm=true       # Use language model for ASR decoding.
-lm_tag=1wh_mixLID           # Suffix to the result dir for language model training.
+lm_tag=           # Suffix to the result dir for language model training.
 lm_config=        # Config for language model training.
 lm_args=          # Arguments for language model training, e.g., "--max_epoch 10".
                   # Note that it will overwrite args in lm config.
@@ -69,7 +69,7 @@ num_splits_lm=1   # Number of splitting for lm corpus
 word_vocab_size=10000 # Size of word vocabulary.
 
 # ASR model related
-asr_tag=transformer_1wh_mixLID_8GPU_noNorm_14E4D    # Suffix to the result dir for asr model training.
+asr_tag=transformer_500h    # Suffix to the result dir for asr model training.
 asr_config= # Config for asr model training.
 asr_args=   # Arguments for asr model training, e.g., "--max_epoch 10".
             # Note that it will overwrite args in asr config.
@@ -221,7 +221,7 @@ bpedir="data/token_list/bpe_${bpemode}${nbpe}"
 bpeprefix="${bpedir}"/model
 bpemodel="${bpeprefix}".model
 bpetoken_list="${bpedir}"/tokens.txt
-chartoken_list=data/token_list/char/bpe_5k/tokens.txt
+chartoken_list=data/token_list/char/chn/tokens.txt
 # NOTE: keep for future development.
 # shellcheck disable=SC2034
 wordtoken_list=data/token_list/word/tokens.txt
@@ -287,8 +287,8 @@ if [ -z "${decode_tag}" ]; then
 fi
 
 # The directory used for collect-stats mode
-asr_stats_dir="${expdir}/asr_1wh_mixLID_stats"
-lm_stats_dir="${expdir}/lm_1wh_mixLID_stats"
+asr_stats_dir="${expdir}/asr_stats"
+lm_stats_dir="${expdir}/lm_stats"
 # The directory used for training commands
 asr_exp="${expdir}/asr_${asr_tag}"
 lm_exp="${expdir}/lm_${lm_tag}"
@@ -969,7 +969,7 @@ if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
     log "Stage 12: Scoring"
 
     for dset in ${eval_sets}; do
-        _data="${data_feats}/${dset}"
+        _data="data/${dset}"
         _dir="${asr_exp}/decode_${dset}_${decode_tag}"
 
         for _type in cer; do
@@ -1003,10 +1003,16 @@ if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
 
             elif [ "${_type}" = cer ]; then
                 # Tokenize text to char level
-                 paste <(<"${_data}/text" awk -F" " '{for(i=2; i<=NF; i++)printf("%s ", $i);print ""}')  \
+                 echo $_dir
+                 echo $_data
+                 echo $_scoredir
+                 paste \
+                       <(<"${_data}/text" awk -F" " '{for(i=2; i<=NF; i++)printf("%s ", $i);print ""}')  \
                        <(<"${_data}/text" awk '{print "(" $1 ")"}')  \
                        >"${_scoredir}/ref.trn"   
-                 paste <(<"${_dir}/token" awk -F" " '{for(i=2; i<=NF; i++)printf("%s ", $i);print ""}')  \
+
+                 paste \
+                       <(<"${_dir}/token" awk -F" " '{for(i=2; i<=NF; i++)printf("%s ", $i);print ""}')  \
                        <(<"${_dir}/text" awk '{print "(" $1 ")"}')  \
                        >"${_scoredir}/hyp.trn"
                  

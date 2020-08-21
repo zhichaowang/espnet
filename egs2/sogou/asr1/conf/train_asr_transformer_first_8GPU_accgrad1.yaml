@@ -33,7 +33,7 @@ model_conf:
 #batch_type: folded
 #batch_size: 32
 batch_type: length
-batch_bin: 102400 
+batch_bins: 102400 
 
 # optimization related
 accum_grad: 1

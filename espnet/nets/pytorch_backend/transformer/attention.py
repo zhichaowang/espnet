@@ -125,7 +125,7 @@ class RelPositionMultiHeadedAttention(MultiHeadedAttention):
         torch.nn.init.xavier_uniform_(self.pos_bias_u)
         torch.nn.init.xavier_uniform_(self.pos_bias_v)
 
-    def rel_shift(self, x, zero_triu=False):
+    def rel_shift(self, x, zero_triu=True):
         """Compute relative positinal encoding.
 
         :param torch.Tensor x: (batch, time, size)
@@ -138,7 +138,7 @@ class RelPositionMultiHeadedAttention(MultiHeadedAttention):
         x = x_padded[:, :, 1:].view_as(x)
 
         if zero_triu:
-            ones = torch.ones((x.size(2), x.size(3)))
+            ones = torch.ones((x.size(2), x.size(3)), device=x.device, dtype=x.dtype)
             x = x * torch.tril(ones, x.size(3) - x.size(2))[None, None, :, :]
 
         return x

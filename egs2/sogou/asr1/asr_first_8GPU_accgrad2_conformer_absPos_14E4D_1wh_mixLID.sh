@@ -23,7 +23,7 @@ min() {
 SECONDS=0
 
 # General configuration
-stage=12          # Processes starts from the specified stage.
+stage=11          # Processes starts from the specified stage.
 stop_stage=12    # Processes is stopped at the specified stage.
 ngpu=8           # The number of gpus ("0" uses cpu, otherwise use gpu).
 num_nodes=1      # The number of nodes
@@ -69,12 +69,12 @@ num_splits_lm=1   # Number of splitting for lm corpus
 word_vocab_size=10000 # Size of word vocabulary.
 
 # ASR model related
-asr_tag=transformer_1wh_mixLID_8GPU_noNorm_14E4D    # Suffix to the result dir for asr model training.
+asr_tag=conformer_1wh_mixLID_8GPU_uttCMN_absPos_14E4D    # Suffix to the result dir for asr model training.
 asr_config= # Config for asr model training.
 asr_args=   # Arguments for asr model training, e.g., "--max_epoch 10".
             # Note that it will overwrite args in asr config.
 #feats_normalize=global_mvn  # Normalizaton layer type
-feats_normalize=  # Normalizaton layer type
+feats_normalize=utterance_mvn  # Normalizaton layer type
 num_splits_asr=1   # Number of splitting for lm corpus
 # Decoding related
 decode_tag=    # Suffix to the result dir for decoding.
@@ -822,7 +822,9 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
         # Default normalization is utterance_mvn and changes to global_mvn
         _opts+="--normalize=global_mvn --normalize_conf stats_file=${asr_stats_dir}/train/feats_stats.npz"
     elif [ "${feats_normalize}" = none ]; then
-        _opts+="--normalize=None"
+        _opts+="--normalize=None "
+    elif [ "${feats_normalize}" = utterance_mvn ]; then
+        _opts+="--normalize=utterance_mvn "
     fi
     
     if [ "${num_splits_asr}" -gt 1 ]; then

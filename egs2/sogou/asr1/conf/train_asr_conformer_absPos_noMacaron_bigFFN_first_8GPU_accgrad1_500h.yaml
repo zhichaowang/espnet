@@ -1,16 +1,21 @@
 # network architecture
 # encoder related
-encoder: transformer
+encoder: conformer
 encoder_conf:
     output_size: 256    # dimension of attention
     attention_heads: 4
-    linear_units: 2048  # the number of units of position-wise feed forward
+    linear_units: 4096  # the number of units of position-wise feed forward
     num_blocks: 12      # the number of encoder blocks
     dropout_rate: 0.1
     positional_dropout_rate: 0.1
     attention_dropout_rate: 0.0
     input_layer: conv2d # encoder architecture type
     normalize_before: true
+    macaron_style: false
+    pos_enc_layer_type: abs_pos
+    selfattention_layer_type: selfattn
+    use_cnn_module: true
+    cnn_module_kernel: 31
 
 # decoder related
 decoder: transformer

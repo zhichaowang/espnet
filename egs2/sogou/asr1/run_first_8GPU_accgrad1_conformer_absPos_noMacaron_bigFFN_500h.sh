@@ -7,9 +7,10 @@ set -o pipefail
 
 train_set=train_sogou_fbank_500h
 dev_set=test8000_sogou
-eval_sets="not_on_screen_sogou testIOS_sogou testDuiHua_sogou testNewLong_sogou testmeeting_cat_agc-1218_sogou"
+#eval_sets="test8000_sogou testNewLong_sogou testmeeting_cat_agc-1218_sogou"
+eval_sets="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou testNewLong_sogou testmeeting_cat_agc-1218_sogou"
 
-asr_config=conf/train_asr_conformer_absPos_first_8GPU_accgrad1_500h.yaml
+asr_config=conf/train_asr_conformer_absPos_noMacaron_bigFFN_first_8GPU_accgrad1_500h.yaml
 decode_config=conf/decode_asr_transformer.yaml
 
 lm_config=conf/train_lm.yaml
@@ -20,7 +21,7 @@ use_wordlm=false
 # (train_set will be "${train_set}_sp" if speed_perturb_factors is specified)
 speed_perturb_factors=
 
-./asr_first_8GPU_accgrad1_conformer_absPos_500h.sh                \
+./asr_first_8GPU_accgrad1_conformer_absPos_noMacaron_bigFFN_500h.sh                \
     --audio_format wav                                 \
     --feats_type extracted                             \
     --token_type char                                  \

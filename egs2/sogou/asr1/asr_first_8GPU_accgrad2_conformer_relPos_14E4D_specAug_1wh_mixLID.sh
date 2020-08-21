@@ -24,9 +24,9 @@ SECONDS=0
 
 # General configuration
 stage=10          # Processes starts from the specified stage.
-stop_stage=10    # Processes is stopped at the specified stage.
+stop_stage=12    # Processes is stopped at the specified stage.
 ngpu=8           # The number of gpus ("0" uses cpu, otherwise use gpu).
-num_nodes=2      # The number of nodes
+num_nodes=1      # The number of nodes
 nj=40            # The number of parallel jobs.
 decode_nj=40     # The number of parallel jobs in decoding.
 gpu_decode=false # Whether to perform gpu decoding.
@@ -59,7 +59,7 @@ bpe_char_cover=1.0  # character coverage when modeling BPE
 
 # Language model related
 use_lm=true       # Use language model for ASR decoding.
-lm_tag=11wh_mixLID           # Suffix to the result dir for language model training.
+lm_tag=1wh_mixLID           # Suffix to the result dir for language model training.
 lm_config=        # Config for language model training.
 lm_args=          # Arguments for language model training, e.g., "--max_epoch 10".
                   # Note that it will overwrite args in lm config.
@@ -69,13 +69,13 @@ num_splits_lm=1   # Number of splitting for lm corpus
 word_vocab_size=10000 # Size of word vocabulary.
 
 # ASR model related
-asr_tag=transformer_11wh_mixLID_16GPU    # Suffix to the result dir for asr model training.
+asr_tag=conformer_1wh_mixLID_8GPU_uttCMN_relPos_14E4D_specAug    # Suffix to the result dir for asr model training.
 asr_config= # Config for asr model training.
 asr_args=   # Arguments for asr model training, e.g., "--max_epoch 10".
             # Note that it will overwrite args in asr config.
 #feats_normalize=global_mvn  # Normalizaton layer type
-feats_normalize=  # Normalizaton layer type
-num_splits_asr=10   # Number of splitting for lm corpus
+feats_normalize=utterance_mvn  # Normalizaton layer type
+num_splits_asr=1   # Number of splitting for lm corpus
 # Decoding related
 decode_tag=    # Suffix to the result dir for decoding.
 decode_config= # Config for decoding.
@@ -83,7 +83,7 @@ decode_args=   # Arguments for decoding, e.g., "--lm_weight 0.1".
                # Note that it will overwrite args in decode config.
 decode_lm=valid.loss.best.pth       # Language modle path for decoding.
 #decode_asr_model=valid.acc.best.pth # ASR model path for decoding.
-decode_asr_model=valid.acc.best.pth # ASR model path for decoding.
+decode_asr_model=valid.acc.ave.pth # ASR model path for decoding.
                                     # e.g.
                                     # decode_asr_model=train.loss.best.pth
                                     # decode_asr_model=3epoch.pth
@@ -221,7 +221,7 @@ bpedir="data/token_list/bpe_${bpemode}${nbpe}"
 bpeprefix="${bpedir}"/model
 bpemodel="${bpeprefix}".model
 bpetoken_list="${bpedir}"/tokens.txt
-chartoken_list=data/token_list/char/tokens.txt
+chartoken_list=data/token_list/char/bpe_5k/tokens.txt
 # NOTE: keep for future development.
 # shellcheck disable=SC2034
 wordtoken_list=data/token_list/word/tokens.txt
@@ -287,8 +287,8 @@ if [ -z "${decode_tag}" ]; then
 fi
 
 # The directory used for collect-stats mode
-asr_stats_dir="${expdir}/asr_11wh_mixLID_stats"
-lm_stats_dir="${expdir}/lm_11wh_mixLID_stats"
+asr_stats_dir="${expdir}/asr_1wh_mixLID_stats"
+lm_stats_dir="${expdir}/lm_1wh_mixLID_stats"
 # The directory used for training commands
 asr_exp="${expdir}/asr_${asr_tag}"
 lm_exp="${expdir}/lm_${lm_tag}"
@@ -822,7 +822,9 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
         # Default normalization is utterance_mvn and changes to global_mvn
         _opts+="--normalize=global_mvn --normalize_conf stats_file=${asr_stats_dir}/train/feats_stats.npz"
     elif [ "${feats_normalize}" = none ]; then
-        _opts+="--normalize=None"
+        _opts+="--normalize=None "
+    elif [ "${feats_normalize}" = utterance_mvn ]; then
+        _opts+="--normalize=utterance_mvn "
     fi
     
     if [ "${num_splits_asr}" -gt 1 ]; then
@@ -868,9 +870,7 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
         --cmd "${cuda_cmd} --name ${asr_exp}/train.log" \
         --log "${asr_exp}"/train.log \
         --ngpu "${ngpu}" \
-        --host "10.141.250.199,10.141.251.17"  \
-        --master_port 59735 \
-        --master_addr "10.141.250.199"  \
+        --num_nodes "${num_nodes}" \
         --init_file_prefix "${asr_exp}"/.dist_init_ \
         --multiprocessing_distributed true -- \
         python3 -m espnet2.bin.asr_train \
@@ -1008,7 +1008,7 @@ if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
                  paste <(<"${_data}/text" awk -F" " '{for(i=2; i<=NF; i++)printf("%s ", $i);print ""}')  \
                        <(<"${_data}/text" awk '{print "(" $1 ")"}')  \
                        >"${_scoredir}/ref.trn"   
-                 paste <(<"${_dir}/token" awk -F" " '{for(i=2; i<=NF; i++)printf("%s ", $i);print ""}')  \                       
+                 paste <(<"${_dir}/token" awk -F" " '{for(i=2; i<=NF; i++)printf("%s ", $i);print ""}')  \
                        <(<"${_dir}/text" awk '{print "(" $1 ")"}')  \
                        >"${_scoredir}/hyp.trn"
                  
