@@ -41,14 +41,14 @@ cd $dir
 if [[ "$track" == "1" ]]; then
   # 1-ch track
   find ${audio_dir}/isolated/ -name '*.wav' | grep 'tr05_bus_simu\|tr05_caf_simu\|tr05_ped_simu\|tr05_str_simu' | sort -u > tr05_simu_$enhan.flist
-  awk -v dir="${audio_dir}/isolated" '{print($dir "/" $1)}' ${annotations}/dt05_simu_1ch_track.list | sort -u > dt05_simu_$enhan.flist
+  awk -v dir="${audio_dir}/isolated" '{print(dir "/" $1)}' ${annotations}/dt05_simu_1ch_track.list | sort -u > dt05_simu_$enhan.flist
   if $eval_flag; then
-    awk -v dir="${audio_dir}/isolated" '{print($dir "/" $1)}' ${annotations}/et05_simu_1ch_track.list | sort -u > et05_simu_$enhan.flist
+    awk -v dir="${audio_dir}/isolated" '{print(dir "/" $1)}' ${annotations}/et05_simu_1ch_track.list | sort -u > et05_simu_$enhan.flist
   fi
 
   # make a scp file from file list
   for x in $list_set; do
-    cat $x.flist | awk -F'[/]' '{print $NF}'| sed -e 's/\.wav/_SIMU/' > ${x}_wav.ids
+    cat $x.flist | awk -F'[/]' '{print $NF}'| sed -e 's/\.CH.\.wav/_SIMU/' > ${x}_wav.ids
     paste -d" " ${x}_wav.ids $x.flist | sort -k 1 > ${x}_wav.scp
     sed -E "s#${audio_dir}/isolated/(.*).wav#${audio_dir}/isolated_ext/\1.Clean.wav#g" ${x}_wav.scp > ${x}_spk1_wav.scp
     sed -E "s#\.Clean\.wav#\.Noise\.wav#g" ${x}_spk1_wav.scp > ${x}_noise_wav.scp

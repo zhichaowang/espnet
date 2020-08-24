@@ -31,7 +31,7 @@ enh_conf:
     n_fft: 512
     win_length: null
     hop_length: 128
-    num_spk: 1
+    num_spk: 2
     normalize_input: False
     use_wpe: False
     wnet_type: blstmp
@@ -48,7 +48,7 @@ enh_conf:
     bunits: 512
     bprojs: 512
     badim: 320
-    ref_channel: 4
-    use_noise_mask: True
+    ref_channel: 0
+    use_noise_mask: False
     beamformer_type: mvdr
     bdropout_rate: 0.0

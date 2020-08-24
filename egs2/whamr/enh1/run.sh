@@ -5,16 +5,13 @@ set -e
 set -u
 set -o pipefail
 
-sample_rate=16k
+min_or_max=min # "min" or "max". This is to determine how the mixtures are generated in local/data.sh.
+sample_rate=8k
 
 
-# train_set=tr05_simu_isolated_6ch_track
-# valid_set=dt05_simu_isolated_6ch_track
-# test_sets="et05_simuz_isolated_6ch_track"
-
-train_set=tr05_simu_isolated_1ch_track
-valid_set=dt05_simu_isolated_1ch_track
-test_sets="et05_simu_isolated_1ch_track"
+train_set=tr_spatialized_anechoic_multich
+valid_set=cv_spatialized_anechoic_multich
+test_sets="tt_spatialized_anechoic_multich"
 
 ./enh.sh \
     --train_set "${train_set}" \
@@ -22,9 +19,8 @@ test_sets="et05_simu_isolated_1ch_track"
     --test_sets "${test_sets}" \
     --fs ${sample_rate} \
     --ngpu 2 \
-    --spk_num 1 \
-    --local_data_opts "--sample_rate ${sample_rate}" \
-    --enh_config ./conf/tuning/train_enh_PSM.yaml \
+    --local_data_opts "--sample_rate ${sample_rate} --min_or_max ${min_or_max}" \
+    --enh_config ./conf/tuning/train_enh_beamformer_no_wpe.yaml \
     --use_dereverb_ref false \
     --use_noise_ref false \
     --inference_model "valid.loss.best.pth" \

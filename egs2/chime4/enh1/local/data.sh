@@ -39,7 +39,7 @@ if [ ! -e "${CHIME4}" ]; then
 fi
 
 
-if [${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
+if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     log "stage 0: Data Simulation"
 
     # prepare simulation data for 6ch track:
@@ -74,14 +74,6 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     local/simu_ext_chime4_data_prep.sh --track 6 isolated_6ch_track ${PWD}/local/nn-gev/data/audio/16kHz
     #  (2) {tr05,dt05,et05}_real_isolated_6ch_track
     local/real_ext_chime4_data_prep.sh --track 6 isolated_6ch_track ${CHIME4}/data/audio/16kHz/isolated_6ch_track
-fi
-
-if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
-	log "combine real and simulation data"
-
-    # 1-ch track
-	utils/combine_data.sh data/tr05_multi_isolated_1ch_track data/tr05_simu_isolated_1ch_track data/tr05_real_isolated_1ch_track --extra_files spk1.scp
-	utils/combine_data.sh data/dt05_multi_isolated_1ch_track data/dt05_simu_isolated_1ch_track data/dt05_real_isolated_1ch_track --extra_files spk1.scp
 fi
 
 log "Successfully finished. [elapsed=${SECONDS}s]"
