@@ -14,6 +14,7 @@ log() {
 help_message=$(cat << EOF
 Usage: $0 [--min_or_max <min/max>] [--sample_rate <8k/16k>]
   optional argument:
+    [--mono]: True (Default), False
     [--min_or_max]: min (Default), max
     [--sample_rate]: 8k (Default), 16k
 EOF
@@ -28,7 +29,7 @@ whamr_scripts=$PWD/data/whamr
 
 other_text=data/local/other_text/text
 nlsyms=data/nlsyms.txt
-mono=True
+mono=False
 min_or_max=min
 sample_rate=8k
 
@@ -45,26 +46,23 @@ if [ ! -e "${WSJ1}" ]; then
     exit 1
 fi
 
-train_set="tr_"${min_or_max}_${sample_rate}
-train_dev="cv_"${min_or_max}_${sample_rate}
-recog_set="tt_"${min_or_max}_${sample_rate}
-
-
 
 ### This part is for WHAMR!
 ### Download mixture scripts and create mixtures for 2 speakers
 local/whamr_create_mixture.sh --mono ${mono} --min-or-max ${min_or_max} --sample-rate ${sample_rate} \
     ${whamr_scripts} ${WSJ0} ${wsj_full_wav} \
     ${whamr_wav} || exit 1;
-local/whamr_data_prep.sh --mono ${mono} --min-or-max ${min_or_max} --sample-rate ${sample_rate} \
-    ${wsj_2mix_wav}/wav${sample_rate}/${min_or_max} ${wsj_2mix_scripts} ${wsj_full_wav} || exit 1;
 
-### create .scp file for reference audio
-for folder in ${train_set} ${train_dev} ${recog_set};
-do
-    sed -e 's/\/mix\//\/s1\//g' ./data/$folder/wav.scp > ./data/$folder/spk1.scp
-    sed -e 's/\/mix\//\/s2\//g' ./data/$folder/wav.scp > ./data/$folder/spk2.scp
-done
+# The following datasets will be created:
+# {tr,cv,tt}_mix_{both,clean,single}_{anechoic,reverb}_${min_or_max}_${sample_rate}
+#
+# Note:
+#   - `both`: a mixture of speech1, speech2 and noise (for speech separation)
+#   - `clean`: a mixture of speech1 and speech2 (for speech separation)
+#   - `single`: a mixture of speech1 and noise (for speech enhancement)
+local/whamr_data_prep.sh --min-or-max ${min_or_max} --sample-rate ${sample_rate} \
+    ${whamr_scripts}/whamr_scripts ${whamr_wav} ${wsj_full_wav} || exit 1;
+
 
 
 ### Also need wsj corpus to prepare language information
@@ -79,8 +77,6 @@ log "mv data/{dev_dt_*,local,test_dev*,test_eval*,train_si284} data/wsj"
 mv data/{dev_dt_*,local,test_dev*,test_eval*,train_si284} data/wsj
 
 
-
-
 log "Prepare text from lng_modl dir: ${WSJ1}/13-32.1/wsj1/doc/lng_modl/lm_train/np_data/{87,88,89}/*.z -> ${other_text}"
 mkdir -p "$(dirname ${other_text})"
 
@@ -88,7 +84,6 @@ mkdir -p "$(dirname ${other_text})"
 zcat ${WSJ1}/13-32.1/wsj1/doc/lng_modl/lm_train/np_data/{87,88,89}/*.z | \
     grep -v "<" | tr "[:lower:]" "[:upper:]" | \
     awk '{ printf("wsj1_lng_%07d %s\n",NR,$0) } ' > ${other_text}
-
 
 
 log "Create non linguistic symbols: ${nlsyms}"

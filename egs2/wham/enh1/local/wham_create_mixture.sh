@@ -5,7 +5,6 @@
 
 wsj0_2mix=    # Path to an existing wsj0-2mix data root directory
 wham_noise=   # Path to the directory containing WHAM! noise
-mono=True
 min_or_max=min
 sample_rate=8k
 
@@ -39,26 +38,24 @@ mkdir -p ${dir}
 mkdir -p ${wdir}/log
 echo "Downloading WHAM! data generation scripts and documentation."
 if [ -z "$wham_noise" ]; then
-  wham_noise=${wdir}/wham_noise
+  wham_noise_url=https://storage.googleapis.com/whisper-public/wham_noise.zip
+  wget --continue -O $wdir/wham_noise.tar.gz ${wham_noise_url}
+  if [ $(ls ${dir}/wham_noise 2>/dev/null | wc -l) -eq 4 ]; then
+    echo "'${dir}/wham_noise/' already exists. Skipping..."
+  else
+    tar -xzf ${wdir}/wham_noise.tar.gz -C ${dir}
+  fi
+  wham_noise=${dir}/wham_noise
 fi
-wham_noise_url=https://storage.googleapis.com/whisper-public/wham_noise.zip
+
 script_url=https://storage.googleapis.com/whisper-public/wham_scripts.tar.gz
-
-wget --continue -O $wdir/wham_noise.tar.gz ${wham_noise_url}
 wget --continue -O $wdir/wham_scripts.tar.gz ${script_url}
-
-if [ $(ls ${dir}/wham_noise 2>/dev/null | wc -l) -eq 4 ]; then
-  echo "'${dir}/wham_noise/' already exists. Skipping..."
-else
-  tar -xzf ${wdir}/wham_noise.tar.gz -C ${dir}
-fi
 tar -xzf ${wdir}/wham_scripts.tar.gz -C ${dir}
 
 # If you want to generate both min and max versions with 8k and 16k data,
-#  remove lines 59 and 60.
-sed -i -e "s#MONO = True#MONO = ${MONO}#" \
-       -e "s#DATA_LEN = \['max', 'min'\]#DATA_LEN = ['${min_or_max}']#" \
-       -e "s#SAMPLE_RATES = \['16k', '8k'\]#SAMPLE_RATES = ['${sample_rate}']#" \
+#  comment out the following 3 lines.
+sed -i -e "s#for datalen_dir in \['max', 'min'\]:#for datalen_dir in ['${min_or_max}']:#" \
+       -e "s#for sr_dir in \['16k', '8k'\]:#for sr_dir in ['${sample_rate}']:#" \
        ${dir}/wham_scripts/create_wham_from_scratch.py
 
 echo "WSJ0 wav file."
@@ -68,23 +65,23 @@ echo "Creating Mixtures."
 cd ${dir}/wham_scripts
 echo "Log is in ${dir}/wham_scripts/mix.log"
 
-# Run simulation
+# Run simulation (single-process)
 if [ -d "$wsj0_2mix" ]; then
-  echo "Using existing wsj0-2mix data"
-  ${train_cmd} mix.log python create_wham_from_wsjmix.py \
+  echo "Using existing wsj0-2mix data in $wsj0_2mix"
+  ${train_cmd} ${dir}/wham_scripts/mix.log python create_wham_from_wsjmix.py \
     --wsjmix-dir-16k ${wsj0_2mix}/wav16k \
     --wsjmix-dir-8k ${wsj0_2mix}/wav8k \
     --wham-noise-root ${wham_noise} \
     --output-dir ${wham_wav}
 else
-  ${train_cmd} mix.log python create_wham_from_scratch.py \
-    --wsj0-root ${wsj0_path} \
+  ${train_cmd} ${dir}/wham_scripts/mix.log python create_wham_from_scratch.py \
+    --wsj0-root ${wsj_full_wav} \
     --wham-noise-root ${wham_noise} \
     --output-dir ${wham_wav}
 fi
 
 # In the default configuration, the script will write about 243 GB of data:
-#  - min_8k: ? GB
+#  - min_8k: 28 GB
 #  - min_16k: ? GB
 #  - max_8k: ? GB
 #  - max_16k: ? GB
