@@ -11,21 +11,23 @@ import torch
 from typeguard import check_argument_types
 from typeguard import check_return_type
 
+
 from espnet2.enh.abs_enh import AbsEnhancement
-from espnet2.enh.espnet_model import ESPnetEnhancementModel
-from espnet2.enh.nets.beamformer_net import BeamformerNet
 from espnet2.enh.nets.tasnet import TasNet
 from espnet2.enh.nets.dprnn_raw import FaSNet_base as DPRNN
 from espnet2.enh.nets.tf_mask_net import TFMaskingNet
+from espnet2.enh.nets.beamformer_net import BeamformerNet
+from espnet2.enh.espnet_model import ESPnetEnhancementModel_mixIT
 from espnet2.tasks.abs_task import AbsTask
 from espnet2.torch_utils.initialize import initialize
 from espnet2.train.class_choices import ClassChoices
-from espnet2.train.collate_fn import CommonCollateFn
 from espnet2.train.trainer import Trainer
 from espnet2.utils.get_default_kwargs import get_default_kwargs
 from espnet2.utils.nested_dict_action import NestedDictAction
 from espnet2.utils.types import str2bool
 from espnet2.utils.types import str_or_none
+
+from egs2.wsj0_mixIT.enh1.codes.collate_fn import CommonCollateFn
 
 enh_choices = ClassChoices(
     name="enh",
@@ -76,7 +78,7 @@ class EnhancementTask(AbsTask):
         group.add_argument(
             "--model_conf",
             action=NestedDictAction,
-            default=get_default_kwargs(ESPnetEnhancementModel),
+            default=get_default_kwargs(ESPnetEnhancementModel_mixIT),
             help="The keyword arguments for model class.",
         )
 
@@ -88,6 +90,29 @@ class EnhancementTask(AbsTask):
             help="Apply preprocessing to data or not",
         )
 
+        group = parser.add_argument_group(description="MIXit related")
+        group.add_argument(
+            "--N_per_mixture",
+            type=int,
+            default=4,
+            help="Number of sources for each mixture",
+        )
+        group.add_argument(
+            "--M_per_MoM",
+            type=int,
+            default=8,
+            help="M for each mixture of mixtures",
+        )
+        group.add_argument(
+            "--ratio_supervised",
+            type=float,
+            default=0.2,
+        )
+        group.add_argument(
+            "--SNR_max",
+            type=int,
+            default=30,
+        )
         for class_choices in cls.class_choices_list:
             # Append --<name> and --<name>_conf.
             # e.g. --encoder and --encoder_conf
@@ -100,6 +125,7 @@ class EnhancementTask(AbsTask):
         [Collection[Tuple[str, Dict[str, np.ndarray]]]],
         Tuple[List[str], Dict[str, torch.Tensor]],
     ]:
+        # TODO:jing  here to mix the mixtures.
         assert check_argument_types()
 
         return CommonCollateFn(float_pad_value=0.0, int_pad_value=0)
@@ -125,6 +151,9 @@ class EnhancementTask(AbsTask):
     @classmethod
     def optional_data_names(cls, inference: bool = False) -> Tuple[str, ...]:
         retval = ["dereverb_ref"]
+        retval += ["mix_ref1"]
+        retval += ["mix_ref2"]
+        retval += ["mix_of_mixtures"]
         retval += ["speech_ref{}".format(n) for n in range(2, MAX_REFERENCE_NUM + 1)]
         retval += ["noise_ref{}".format(n) for n in range(1, MAX_REFERENCE_NUM + 1)]
         retval = tuple(retval)
@@ -132,13 +161,13 @@ class EnhancementTask(AbsTask):
         return retval
 
     @classmethod
-    def build_model(cls, args: argparse.Namespace) -> ESPnetEnhancementModel:
+    def build_model(cls, args: argparse.Namespace) -> ESPnetEnhancementModel_mixIT:
         assert check_argument_types()
 
         enh_model = enh_choices.get_class(args.enh)(**args.enh_conf)
 
         # 1. Build model
-        model = ESPnetEnhancementModel(enh_model=enh_model)
+        model = ESPnetEnhancementModel_mixIT(enh_model=enh_model)
 
         # FIXME(kamo): Should be done in model?
         # 2. Initialize
