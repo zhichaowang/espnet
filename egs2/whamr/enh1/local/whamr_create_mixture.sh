@@ -79,7 +79,7 @@ ${train_cmd} ${dir}/whamr_scripts/mix.log python create_wham_from_scratch.py \
   --output-dir ${whamr_wav}
 
 # In the default configuration, the script will write about 444 GB of data:
-#  - min_8k: 52 GB (mono=True) / ? GB (mono=False)
+#  - min_8k: 52 GB (mono=True) / 102 GB (mono=False)
 #  - min_16k: ? GB
 #  - max_8k: ? GB
 #  - max_16k: ? GB

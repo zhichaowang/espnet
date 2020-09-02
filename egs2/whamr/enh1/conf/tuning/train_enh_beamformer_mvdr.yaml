@@ -31,7 +31,7 @@ enh_conf:
     n_fft: 512
     win_length: null
     hop_length: 128
-    num_spk: 2
+    num_spk: 1
     normalize_input: False
     use_wpe: False
     wnet_type: blstmp
