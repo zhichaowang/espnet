@@ -147,6 +147,7 @@ class DNN_Beamformer(torch.nn.Module):
 
         # data (B, T, C, F) -> (B, F, C, T)
         data = data.permute(0, 3, 2, 1)
+        data_d = data.double()
 
         # mask: [(B, F, C, T)]
         masks, _ = self.mask(data, ilens)
@@ -163,7 +164,6 @@ class DNN_Beamformer(torch.nn.Module):
                 mask_speech = masks[0]
                 mask_noise = 1 - mask_speech
 
-            data_d = data.double()
             psd_speech = get_power_spectral_density_matrix(data_d, mask_speech.double())
             if self.beamformer_type == "mvdr":
                 # psd of noise
@@ -205,19 +205,19 @@ class DNN_Beamformer(torch.nn.Module):
                 mask_noise = None
 
             psd_speeches = [
-                get_power_spectral_density_matrix(data, mask) for mask in mask_speech
+                get_power_spectral_density_matrix(data_d, mask.double()) for mask in mask_speech
             ]
             if self.beamformer_type == "mvdr":
                 # psd of noise
                 if mask_noise is not None:
-                    psd_n = get_power_spectral_density_matrix(data, mask_noise)
+                    psd_n = get_power_spectral_density_matrix(data_d, mask_noise.double())
             elif self.beamformer_type == "mpdr":
                 # psd of observed speech
-                psd_n = FC.einsum("...ct,...et->...ce", [data, data.conj()])
+                psd_n = FC.einsum("...ct,...et->...ce", [data_d, data_d.conj()])
             elif self.beamformer_type == "wpd":
                 # Calculate power: (..., C, T)
-                power = data.real ** 2 + data.imag ** 2
-                power_speeches = [power * mask for mask in mask_speech]
+                power = data_d.real ** 2 + data_d.imag ** 2
+                power_speeches = [power * mask.double() for mask in mask_speech]
                 # Averaging along the channel axis: (B, F, C, T) -> (B, F, T)
                 power_speeches = [ps.mean(dim=-2) for ps in power_speeches]
                 inverse_poweres = [
@@ -226,7 +226,7 @@ class DNN_Beamformer(torch.nn.Module):
                 # covariance of expanded observed speech
                 psd_n = [
                     get_covariances(
-                        data, inv_ps, self.bdelay, self.btaps, get_vector=False
+                        data_d, inv_ps, self.bdelay, self.btaps, get_vector=False
                     )
                     for inv_ps in inverse_poweres
                 ]

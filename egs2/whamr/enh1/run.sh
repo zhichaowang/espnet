@@ -9,15 +9,22 @@ min_or_max=min # "min" or "max". This is to determine how the mixtures are gener
 sample_rate=8k
 
 
+<<<<<<< HEAD
 train_set=tr_mix_single_reverb_min_8k
 valid_set=cv_mix_single_reverb_min_8k
 test_sets="tt_mix_single_reverb_min_8k"
+=======
+train_set=tr_spatialized_anechoic_multich
+valid_set=cv_spatialized_anechoic_multich
+test_sets="tt_spatialized_anechoic_multich"
+>>>>>>> origin/develop_rebased
 
 ./enh.sh \
     --train_set "${train_set}" \
     --valid_set "${valid_set}" \
     --test_sets "${test_sets}" \
     --fs ${sample_rate} \
+<<<<<<< HEAD
     --audio_format wav \
     --spk_num 1 \
     --ngpu 2 \
@@ -33,3 +40,12 @@ test_sets="tt_mix_single_reverb_min_8k"
 #    --enh_config ./conf/tuning/train_enh_beamformer_mvdr.yaml \
 #    --enh_config ./conf/tuning/train_enh_beamformer_mvdr_wpe.yaml \
 #    --enh_config ./conf/tuning/train_enh_beamformer_mvdr_nara_wpe.yaml \
+=======
+    --ngpu 2 \
+    --local_data_opts "--sample_rate ${sample_rate} --min_or_max ${min_or_max}" \
+    --enh_config ./conf/tuning/train_enh_beamformer_no_wpe.yaml \
+    --use_dereverb_ref false \
+    --use_noise_ref false \
+    --inference_model "valid.loss.best.pth" \
+    "$@"
+>>>>>>> origin/develop_rebased

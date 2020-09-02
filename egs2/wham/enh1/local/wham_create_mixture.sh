@@ -49,7 +49,7 @@ if [ -z "$wham_noise" ]; then
 fi
 
 script_url=https://storage.googleapis.com/whisper-public/wham_scripts.tar.gz
-#wget --continue -O $wdir/wham_scripts.tar.gz ${script_url}
+wget --continue -O $wdir/wham_scripts.tar.gz ${script_url}
 tar -xzf ${wdir}/wham_scripts.tar.gz -C ${dir}
 
 # If you want to generate both min and max versions with 8k and 16k data,
@@ -59,7 +59,7 @@ sed -i -e "s#for datalen_dir in \['max', 'min'\]:#for datalen_dir in ['${min_or_
        ${dir}/wham_scripts/create_wham_from_scratch.py
 
 echo "WSJ0 wav file."
-#local/convert2wav.sh ${wsj0_path} ${wsj_full_wav} || exit 1;
+local/convert2wav.sh ${wsj0_path} ${wsj_full_wav} || exit 1;
 
 echo "Creating Mixtures."
 cd ${dir}/wham_scripts
@@ -81,7 +81,7 @@ else
 fi
 
 # In the default configuration, the script will write about 243 GB of data:
-#  - min_8k: ? GB
+#  - min_8k: 28 GB
 #  - min_16k: ? GB
 #  - max_8k: ? GB
 #  - max_16k: ? GB

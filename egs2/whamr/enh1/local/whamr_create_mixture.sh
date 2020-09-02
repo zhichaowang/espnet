@@ -35,7 +35,7 @@ whamr_wav=$4
 rootdir=$PWD
 wdir=data/local/downloads
 mkdir -p ${dir}
-mkdir -p ${wdir}/log
+mkdir -p ${wdir}
 echo "Downloading WHAMR! data generation scripts and documentation."
 
 if [ -z "$wham_noise" ]; then
@@ -50,8 +50,8 @@ if [ -z "$wham_noise" ]; then
 fi
 
 script_url=https://storage.googleapis.com/whisper-public/whamr_scripts.tar.gz
-#wget --continue -O $wdir/whamr_scripts.tar.gz ${script_url}
-#tar -xzf ${wdir}/whamr_scripts.tar.gz -C ${dir}
+wget --continue -O $wdir/whamr_scripts.tar.gz ${script_url}
+tar -xzf ${wdir}/whamr_scripts.tar.gz -C ${dir}
 
 # If you want to generate both min and max versions with 8k and 16k data,
 #  remove lines 59 and 60.
@@ -61,21 +61,25 @@ sed -i -e "s#MONO = True#MONO = ${mono}#" \
        ${dir}/whamr_scripts/create_wham_from_scratch.py
 
 echo "WSJ0 wav file."
-#local/convert2wav.sh ${wsj0_path} ${wsj_full_wav} || exit 1;
+local/convert2wav.sh ${wsj0_path} ${wsj_full_wav} || exit 1;
 
 echo "Creating Mixtures."
-# Run simulation
-# (This may take ~6 hours to generate both min and max versions
-#  on Intel(R) Xeon(R) CPU E5-2620 v4 @ 2.10GHz)
+if [ -z "$(python -m pip list | grep pyroomacoustics)" ]; then
+  echo -e "Please install pyroomacoustics first:\n pip install pyroomacoustics==0.2.0"
+  exit 1;
+fi
+# Run simulation (single-process)
+# (This may take ~11 hours to generate min version, 8k data
+#  on Intel(R) Xeon(R) CPU E5-2680 v3 @ 2.50GHz)
 cd ${dir}/whamr_scripts
 echo "Log is in ${dir}/whamr_scripts/mix.log"
-${train_cmd} mix.log python create_wham_from_scratch.py \
+${train_cmd} ${dir}/whamr_scripts/mix.log python create_wham_from_scratch.py \
   --wsj0-root ${wsj_full_wav} \
   --wham-noise-root ${wham_noise} \
   --output-dir ${whamr_wav}
 
 # In the default configuration, the script will write about 444 GB of data:
-#  - min_8k: ? GB
+#  - min_8k: 52 GB (mono=True) / ? GB (mono=False)
 #  - min_16k: ? GB
 #  - max_8k: ? GB
 #  - max_16k: ? GB
