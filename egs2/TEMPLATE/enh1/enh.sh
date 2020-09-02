@@ -73,6 +73,8 @@ inference_model=valid.si_snr.best.pth
 scoring_protocol="STOI SDR SAR SIR"
 ref_channel=0
 score_with_asr=false
+asr_exp=""       # asr model for scoring WER
+lm_exp=""       # lm model for scoring WER
 
 # [Task dependent] Set the datadir name created by local/data.sh
 train_set=       # Name of training set.
@@ -659,7 +661,9 @@ if "${score_with_asr}"; then
         log "Stage 9: Decode with pretrained ASR model: "
         _cmd=${decode_cmd}
         decode_asr_model=valid.acc.best.pth
-        asr_exp='/mnt/lustre/sjtu/home/cdl54/workspace/asr/develop/espnet/egs2/wsj/asr1/exp/asr_train_asr_transformer_raw_char'
+
+        decode_args="--lm_train_config ${lm_exp}/config.yaml "
+        decode_args+="--lm_file ${lm_exp}/valid.loss.best.pth "
 
         if ${gpu_inference}; then
             _cmd=${cuda_cmd}
@@ -670,7 +674,7 @@ if "${score_with_asr}"; then
         fi
 
 
-        for dset in ${test_sets}; do
+        for dset in ${valid_set} ${test_sets}; do
             _data="${data_feats}/${dset}"
             _inf_dir="${enh_exp}/enhanced_${dset}"
             _dir="${enh_exp}/enhanced_${dset}/scoring_asr"
@@ -686,7 +690,8 @@ if "${score_with_asr}"; then
 
                 # cp ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} ${_ddir}/wav_ori.scp
                 # pick 100 utterences for debug
-                head -100 ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} > ${_ddir}/wav.scp
+                # head -100 ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} > ${_ddir}/wav.scp
+                cat ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} > ${_ddir}/wav.scp
                 cp data/${dset}/text_spk${spk} ${_ddir}/text
                 cp ${_data}/{spk2utt,utt2spk,utt2num_samples,feats_type} ${_ddir}
                 utils/fix_data_dir.sh "${_ddir}"
@@ -696,7 +701,7 @@ if "${score_with_asr}"; then
 
                 scripts/audio/format_wav_scp.sh --nj "${inference_nj}" --cmd "${_cmd}" \
                     --out-filename "wav.scp" \
-                    --audio-format "${audio_format}" --fs "16k" \
+                    --audio-format "${audio_format}" --fs "${fs}" \
                     "${_ddir}/wav_ori.scp" "${_ddir}" \
                     "${_ddir}/formated/logs/" "${_ddir}/formated/"
 
@@ -720,7 +725,7 @@ if "${score_with_asr}"; then
                         --key_file "${_logdir}"/keys.JOB.scp \
                         --asr_train_config "${asr_exp}"/config.yaml \
                         --asr_model_file "${asr_exp}"/"${decode_asr_model}" \
-                        --output_dir "${_logdir}"/output.JOB 
+                        --output_dir "${_logdir}"/output.JOB ${decode_args}
 
                 for f in token token_int score text; do
                     for i in $(seq "${_nj}"); do
@@ -748,7 +753,7 @@ if "${score_with_asr}"; then
         fi
 
 
-        for dset in ${test_sets}; do
+        for dset in ${valid_set} ${test_sets}; do
             _inf_dir="${enh_exp}/enhanced_${dset}"
             _dir="${enh_exp}/enhanced_${dset}/scoring_asr"
 
