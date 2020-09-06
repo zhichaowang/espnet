@@ -34,7 +34,8 @@ class ESPnetEnhancementModel(AbsESPnetModel):
     """Speech enhancement or separation Frontend model"""
 
     def __init__(
-        self, enh_model: Optional[AbsEnhancement],
+        self,
+        enh_model: Optional[AbsEnhancement],
     ):
         assert check_argument_types()
 
