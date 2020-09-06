@@ -48,7 +48,7 @@ enh_conf:
     bunits: 512
     bprojs: 512
     badim: 320
-    ref_channel: 0
+    ref_channel: 4
     use_noise_mask: True
     beamformer_type: mvdr
     bdropout_rate: 0.0

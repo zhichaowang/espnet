@@ -164,7 +164,8 @@ class Speech2Text:
 
     @torch.no_grad()
     def __call__(
-        self, speech_mix: Union[torch.Tensor, np.ndarray],
+        self,
+        speech_mix: Union[torch.Tensor, np.ndarray],
         speech_ref1: Union[torch.Tensor, np.ndarray],
         speech_ref2: Union[torch.Tensor, np.ndarray],
     ) -> List[List[Tuple[float, Optional[str], List[str], List[int], Hypothesis]]]:
@@ -192,17 +193,21 @@ class Speech2Text:
         # a. To device
         batch = to_device(batch, device=self.device)
 
-        speech_pre, *__ = self.joint_model.enh_model.forward_rawwav(batch['speech'],batch['speech_lengths'])
-        ref = np.array(torch.stack([speech_ref1,speech_ref2],dim=0).squeeze()) # nspk,T
-        inf = np.array(torch.stack(speech_pre,dim=1).squeeze())
+        speech_pre, *__ = self.joint_model.enh_model.forward_rawwav(
+            batch["speech"], batch["speech_lengths"]
+        )
+        ref = np.array(
+            torch.stack([speech_ref1, speech_ref2], dim=0).squeeze()
+        )  # nspk,T
+        inf = np.array(torch.stack(speech_pre, dim=1).squeeze())
         sdr, sir, sar, perm = bss_eval_sources(ref, inf, compute_permutation=True)
 
         # b. Forward Encoder
-        results_list=[]
+        results_list = []
         # For each predicted spk
-        for idx,p in enumerate(perm):
+        for idx, p in enumerate(perm):
             speech_spk = speech_pre[int(p)]
-            enc, _ = self.joint_model.encode(speech_spk,batch['speech_lengths'])
+            enc, _ = self.joint_model.encode(speech_spk, batch["speech_lengths"])
             assert len(enc) == 1, len(enc)
 
             # c. Passed the encoder result and the beam search
@@ -335,7 +340,9 @@ def inference(
             for spk_idx, results in enumerate(results_list):
                 # Only supporting batch_size==1
                 key = keys[0]
-                for n, (sdr, text, token, token_int, hyp) in zip(range(1, nbest + 1), results):
+                for n, (sdr, text, token, token_int, hyp) in zip(
+                    range(1, nbest + 1), results
+                ):
                     # Create a directory: outdir/{n}best_recog
                     ibest_writer = writer[f"{n}best_recog_spk{spk_idx+1}"]
 

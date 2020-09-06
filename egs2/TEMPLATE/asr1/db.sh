@@ -18,6 +18,7 @@ if [[ "$(hostname -d)" == clsp.jhu.edu ]]; then
                 ##            e.g. $ ls $CSJDATATOP(USB) => 00README.txt DOC MORPH ... WAV fileList.csv
                 ## Case merl :MERL setup. Neccesary directory is WAV and sdb
     CSMSC=
+    DIRHA=
     HKUST1=
     HKUST2=
     LIBRISPEECH=
@@ -77,6 +78,7 @@ else
                 ##            e.g. $ ls $CSJDATATOP(USB) => 00README.txt DOC MORPH ... WAV fileList.csv
                 ## Case merl :MERL setup. Neccesary directory is WAV and sdb
     CSMSC=downloads
+    DIRHA=
     HKUST1=
     HKUST2=
     LIBRISPEECH=

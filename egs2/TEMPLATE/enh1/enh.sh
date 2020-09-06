@@ -27,14 +27,14 @@ stage=1          # Processes starts from the specified stage.
 stop_stage=10000 # Processes is stopped at the specified stage.
 skip_data_prep=false # Skip data preparation stages
 skip_train=false     # Skip training stages
-skip_eval=false      # Skip decoding and evaluation stages
+skip_eval=false      # Skip inference and evaluation stages
 skip_upload=true     # Skip packing and uploading stages
 ngpu=1           # The number of gpus ("0" uses cpu, otherwise use gpu).
 num_nodes=1      # The number of nodes
 nj=32            # The number of parallel jobs.
 dumpdir=dump     # Directory to dump features.
-inference_nj=32     # The number of parallel jobs in decoding.
-gpu_inference=false # Whether to perform gpu decoding.
+inference_nj=32     # The number of parallel jobs in inference.
+gpu_inference=false # Whether to perform gpu inference.
 expdir=exp       # Directory to save experiments.
 python=python3       # Specify python to execute espnet commands
 
@@ -50,6 +50,7 @@ audio_format=flac # Audio format (only in feats_type=raw).
 fs=16k            # Sampling rate.
 min_wav_duration=0.1   # Minimum duration in second
 max_wav_duration=20    # Maximum duration in second
+input_type=sound  # Input data type: sound / hdf5
 
 # Enhancement model related
 enh_exp=    # Specify the direcotry path for enhancement experiment. If this option is specified, enh_tag is ignored.
@@ -73,6 +74,8 @@ inference_model=valid.si_snr.best.pth
 scoring_protocol="STOI SDR SAR SIR"
 ref_channel=0
 score_with_asr=false
+asr_exp=""       # asr model for scoring WER
+lm_exp=""       # lm model for scoring WER
 
 # [Task dependent] Set the datadir name created by local/data.sh
 train_set=       # Name of training set.
@@ -90,7 +93,7 @@ Options:
     --stop_stage    # Processes is stopped at the specified stage (default="${stop_stage}").
     --skip_data_prep # Skip data preparation stages (default="${skip_data_prep}").
     --skip_train     # Skip training stages (default="${skip_train}").
-    --skip_eval      # Skip decoding and evaluation stages (default="${skip_eval}").
+    --skip_eval      # Skip inference and evaluation stages (default="${skip_eval}").
     --skip_upload    # Skip packing and uploading stages (default="${skip_upload}").
     --ngpu          # The number of gpus ("0" uses cpu, otherwise use gpu, default="${ngpu}").
     --num_nodes     # The number of nodes
@@ -268,11 +271,11 @@ if ! "${skip_data_prep}"; then
             for i in $(seq ${spk_num}); do
                 _spk_list+="spk${i} "
             done
-            if $use_noise_ref; then
+            if $use_noise_ref && [ -n "${_suf}" ]; then
                 # reference for denoising ("noise1 noise2 ... niose${noise_type_num} ")
                 _spk_list+=$(for n in $(seq $noise_type_num); do echo -n "noise$n "; done)
             fi
-            if $use_dereverb_ref; then
+            if $use_dereverb_ref && [ -n "${_suf}" ]; then
                 # reference for dereverberation
                 _spk_list+="dereverb "
             fi
@@ -555,7 +558,7 @@ if ! "${skip_eval}"; then
             # shellcheck disable=SC2086
             utils/split_scp.pl "${key_file}" ${split_scps}
 
-            # 2. Submit decoding jobs
+            # 2. Submit inference jobs
             log "Ehancement started... log: '${_logdir}/enh_inference.*.log'"
             # shellcheck disable=SC2086
             ${_cmd} --gpu "${_ngpu}" JOB=1:"${_nj}" "${_logdir}"/enh_inference.JOB.log \
@@ -618,7 +621,7 @@ if ! "${skip_eval}"; then
                 _inf_scp+="--inf_scp ${_inf_dir}/spk${spk}.scp "
             done
 
-            # 2. Submit decoding jobs
+            # 2. Submit scoring jobs
             log "Scoring started... log: '${_logdir}/enh_scoring.*.log'"
             # shellcheck disable=SC2086
             ${_cmd} JOB=1:"${_nj}" "${_logdir}"/enh_scoring.JOB.log \
@@ -659,7 +662,9 @@ if "${score_with_asr}"; then
         log "Stage 9: Decode with pretrained ASR model: "
         _cmd=${decode_cmd}
         decode_asr_model=valid.acc.best.pth
-        asr_exp='/mnt/lustre/sjtu/home/cdl54/workspace/asr/develop/espnet/egs2/wsj/asr1/exp/asr_train_asr_transformer_raw_char'
+
+        decode_args="--lm_train_config ${lm_exp}/config.yaml "
+        decode_args+="--lm_file ${lm_exp}/valid.loss.best.pth "
 
         if ${gpu_inference}; then
             _cmd=${cuda_cmd}
@@ -670,7 +675,7 @@ if "${score_with_asr}"; then
         fi
 
 
-        for dset in ${test_sets}; do
+        for dset in ${valid_set} ${test_sets}; do
             _data="${data_feats}/${dset}"
             _inf_dir="${enh_exp}/enhanced_${dset}"
             _dir="${enh_exp}/enhanced_${dset}/scoring_asr"
@@ -686,7 +691,8 @@ if "${score_with_asr}"; then
 
                 # cp ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} ${_ddir}/wav_ori.scp
                 # pick 100 utterences for debug
-                head -100 ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} > ${_ddir}/wav.scp
+                # head -100 ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} > ${_ddir}/wav.scp
+                cat ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} > ${_ddir}/wav.scp
                 cp data/${dset}/text_spk${spk} ${_ddir}/text
                 cp ${_data}/{spk2utt,utt2spk,utt2num_samples,feats_type} ${_ddir}
                 utils/fix_data_dir.sh "${_ddir}"
@@ -694,15 +700,15 @@ if "${score_with_asr}"; then
 
                 
 
-                scripts/audio/format_wav_scp.sh --nj "${infernece_nj}" --cmd "${_cmd}" \
+                scripts/audio/format_wav_scp.sh --nj "${inference_nj}" --cmd "${_cmd}" \
                     --out-filename "wav.scp" \
-                    --audio-format "${audio_format}" --fs "16k" \
+                    --audio-format "${audio_format}" --fs "${fs}" \
                     "${_ddir}/wav_ori.scp" "${_ddir}" \
                     "${_ddir}/formated/logs/" "${_ddir}/formated/"
 
                 # 1. Split the key file
                 key_file=${_ddir}/wav.scp
-                _nj=$(min "${infernece_nj}" "$(<${key_file} wc -l)")
+                _nj=$(min "${inference_nj}" "$(<${key_file} wc -l)")
 
                 split_scps=""
                 for n in $(seq "${_nj}"); do
@@ -720,7 +726,7 @@ if "${score_with_asr}"; then
                         --key_file "${_logdir}"/keys.JOB.scp \
                         --asr_train_config "${asr_exp}"/config.yaml \
                         --asr_model_file "${asr_exp}"/"${decode_asr_model}" \
-                        --output_dir "${_logdir}"/output.JOB 
+                        --output_dir "${_logdir}"/output.JOB ${decode_args}
 
                 for f in token token_int score text; do
                     for i in $(seq "${_nj}"); do
@@ -748,7 +754,7 @@ if "${score_with_asr}"; then
         fi
 
 
-        for dset in ${test_sets}; do
+        for dset in ${valid_set} ${test_sets}; do
             _inf_dir="${enh_exp}/enhanced_${dset}"
             _dir="${enh_exp}/enhanced_${dset}/scoring_asr"
 
@@ -850,8 +856,8 @@ if ! "${skip_upload}"; then
     fi
 
 
-    if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
-        log "Stage 10: Upload model to Zenodo: ${packed_model}"
+    if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
+        log "Stage 12: Upload model to Zenodo: ${packed_model}"
 
         # To upload your model, you need to do:
         #   1. Sign up to Zenodo: https://zenodo.org/

@@ -65,6 +65,10 @@ def scoring(
                     "Reference must be multi-channel when the \
                     network output is multi-channel."
                 )
+            elif ref.ndim == inf.ndim == 3:
+                # multi-channel reference and output
+                ref = ref[..., ref_channel]
+                inf = inf[..., ref_channel]
 
             sdr, sir, sar, perm = bss_eval_sources(ref, inf, compute_permutation=True)
 
