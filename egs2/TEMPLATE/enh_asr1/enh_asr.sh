@@ -103,9 +103,9 @@ decode_config= # Config for decoding.
 decode_args="--normalize_output_wav true "   # Arguments for decoding, e.g., "--lm_weight 0.1".
                                             # Note that it will overwrite args in decode config.
 # TODO(Jing): needs more clean configure choice
-decode_joint_model=valid.loss.best.pth
+decode_joint_model=valid.acc.best.pth
 decode_lm=valid.loss.best.pth       # Language modle path for decoding.
-decode_asr_model=valid.acc.best.pth # ASR model path for decoding.
+decode_asr_model=${decode_joint_model} # ASR model path for decoding.
                                     # e.g.
                                     # decode_asr_model=train.loss.best.pth
                                     # decode_asr_model=3epoch.pth
@@ -117,7 +117,7 @@ train_set=       # Name of training set.
 valid_set=       # Name of validation set used for monitoring/tuning network training
 test_sets=       # Names of test sets. Multiple items (e.g., both dev and eval sets) can be specified.
 enh_speech_fold_length=800 # fold_length for speech data during enhancement training
-# TODO(Jing): should add the wsj1 texts in run?
+
 srctexts=        # Used for the training of BPE and LM and the creation of a vocabulary list.
 lm_dev_text=     # Text file path of language model development set.
 lm_test_text=    # Text file path of language model evaluation set.
@@ -358,10 +358,14 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     # i.e. the input file format and rate is same as the output.
 
     for dset in "${train_set}" "${valid_set}" ${test_sets}; do
-        utils/copy_data_dir.sh data/"${dset}" "${data_feats}/org/${dset}"
-        # TODO(Jing): should be more precise.
-        cp data/"${dset}"/text_spk* "${data_feats}/org/${dset}"
-        rm -f ${data_feats}/org/${dset}/{segments,wav.scp,reco2file_and_channel}
+        if [ "${dset}" = "${train_set}" ] || [ "${dset}" = "${valid_set}" ]; then
+            _suf="/org"
+        else
+            _suf=""
+        fi
+        utils/copy_data_dir.sh data/"${dset}" "${data_feats}${_suf}/${dset}"
+        cp data/"${dset}"/text_spk* "${data_feats}${_suf}/${dset}"
+        rm -f ${data_feats}${_suf}/${dset}/{segments,wav.scp,reco2file_and_channel}
         _opts=
         if [ -e data/"${dset}"/segments ]; then
             # "segments" is used for splitting wav files which are written in "wav".scp
@@ -391,11 +395,11 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
             scripts/audio/format_wav_scp.sh --nj "${nj}" --cmd "${train_cmd}" \
                 --out-filename "${spk}.scp" \
                 --audio-format "${audio_format}" --fs "${fs}" ${_opts} \
-                "data/${dset}/${spk}.scp" "${data_feats}/org/${dset}" \
-                "${data_feats}/org/${dset}/logs/${spk}" "${data_feats}/org/${dset}/data/${spk}"
+                "data/${dset}/${spk}.scp" "${data_feats}${_suf}/${dset}" \
+                "${data_feats}${_suf}/${dset}/logs/${spk}" "${data_feats}${_suf}/${dset}/data/${spk}"
 
         done
-        echo "${feats_type}" > "${data_feats}/org/${dset}/feats_type"
+        echo "${feats_type}" > "${data_feats}${_suf}/${dset}/feats_type"
 
     done
 fi
@@ -510,7 +514,6 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
         --add_symbol "${blank}:0" \
         --add_symbol "${oov}:1" \
         --add_symbol "${sos_eos}:-1"
-    pwd
 
     # Create word-list for word-LM training
     if ${use_word_lm}; then
@@ -567,9 +570,9 @@ if "${use_lm}"; then
         _logdir="${lm_stats_dir}/logdir"
         mkdir -p "${_logdir}"
         # Get the minimum number among ${nj} and the number lines of input files
-        _nj=$(min "${nj}" "$(<${data_feats}/srctexts_with_spk wc -l)" "$(<${lm_dev_text} wc -l)")
+        _nj=$(min "${nj}" "$(<${data_feats}/srctexts wc -l)" "$(<${lm_dev_text} wc -l)")
 
-        key_file="${data_feats}/srctexts_with_spk"
+        key_file="${data_feats}/srctexts"
         split_scps=""
         for n in $(seq ${_nj}); do
             split_scps+=" ${_logdir}/train.${n}.scp"
@@ -601,7 +604,7 @@ if "${use_lm}"; then
                 --non_linguistic_symbols "${nlsyms_txt}" \
                 --cleaner "${cleaner}" \
                 --g2p "${g2p}" \
-                --train_data_path_and_name_and_type "${data_feats}/srctexts_with_spk,text,text" \
+                --train_data_path_and_name_and_type "${data_feats}/srctexts,text,text" \
                 --valid_data_path_and_name_and_type "${lm_dev_text},text,text" \
                 --train_shape_file "${_logdir}/train.JOB.scp" \
                 --valid_shape_file "${_logdir}/dev.JOB.scp" \
@@ -629,6 +632,10 @@ if "${use_lm}"; then
 
     if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
         log "Stage 7: LM Training: train_set=${data_feats}/srctexts, dev_set=${lm_dev_text}"
+        if [ ${spk_num} -ge 2 ]; then
+            lm_dev_text="${data_feats}/valid_srctexts_with_spk"      # Text file path of language model development set.
+            lm_test_text="${data_feats}/test_srctexts_with_spk"    # Text file path of language model evaluation set.
+        fi
 
         _opts=
         if [ -n "${lm_config}" ]; then
@@ -646,7 +653,7 @@ if "${use_lm}"; then
             if [ ! -f "${_split_dir}/.done" ]; then
                 rm -f "${_split_dir}/.done"
                 python3 -m espnet2.bin.split_scps \
-                  --scps "${data_feats}/srctexts_with_spk" "${lm_stats_dir}/train/text_shape.${lm_token_type}" \
+                  --scps "${data_feats}/srctexts" "${lm_stats_dir}/train/text_shape.${lm_token_type}" \
                   --num_splits "${num_splits_lm}" \
                   --output_dir "${_split_dir}"
                 touch "${_split_dir}/.done"
@@ -654,13 +661,12 @@ if "${use_lm}"; then
                 log "${_split_dir}/.done exists. Spliting is skipped"
             fi
 
-            _opts+="--train_data_path_and_name_and_type ${_split_dir}/srctexts_with_spk,text,text "
+            _opts+="--train_data_path_and_name_and_type ${_split_dir}/srctexts,text,text "
             _opts+="--train_shape_file ${_split_dir}/text_shape.${lm_token_type} "
             _opts+="--multiple_iterator true "
 
         else
-            pwd
-            _opts+="--train_data_path_and_name_and_type ${data_feats}/srctexts_with_spk,text,text "
+            _opts+="--train_data_path_and_name_and_type ${data_feats}/srctexts,text,text "
             _opts+="--train_shape_file ${lm_stats_dir}/train/text_shape.${lm_token_type} "
         fi
 
@@ -696,6 +702,10 @@ if "${use_lm}"; then
 
     if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
         log "Stage 8: Calc perplexity: ${lm_test_text}"
+        if [ ${spk_num} -ge 2 ]; then
+            lm_dev_text="${data_feats}/valid_srctexts_with_spk"      # Text file path of language model development set.
+            lm_test_text="${data_feats}/test_srctexts_with_spk"    # Text file path of language model evaluation set.
+        fi
         _opts=
         # TODO(kamo): Parallelize?
         log "Perplexity calculation started... log: '${lm_exp}/perplexity_test/lm_calc_perplexity.log'"
@@ -1096,21 +1106,24 @@ if ! "${skip_eval}"; then
                                       ) \
                             <(<"${_data}/text_spk${spk}" awk '{ print "(" $1 ")" }') \
                                 >"${_scoredir}/hyp_spk${spk}.trn"
-                        done
+                    done
                 fi
 
                 # FIXME(Jing): cat the files of each spk
-                sclite \
-                    -r "${_scoredir}/ref.trn" trn \
-                    -h "${_scoredir}/hyp.trn" trn \
-                    -i rm -o all stdout > "${_scoredir}/result.txt"
+                for spk in $(seq "${spk_num}"); do
+                    sclite \
+                        -r "${_scoredir}/ref_spk${spk}.trn" trn \
+                        -h "${_scoredir}/hyp_spk${spk}.trn" trn \
+                        -i rm -o all stdout > "${_scoredir}/result_spk${spk}.txt"
 
-                log "Write ${_type} result in ${_scoredir}/result.txt"
-                grep -e Avg -e SPKR -m 2 "${_scoredir}/result.txt"
+                    log "Write ${_type} result in ${_scoredir}/result_spk${spk}.txt"
+                    grep -e Avg -e SPKR -m 2 "${_scoredir}/result_spk${spk}.txt"
+                done
             done
 
         done
 
+        # TODO(Jing): incorporate from egs/WSJ_mix
         # Show results in Markdown syntax
         scripts/utils/show_asr_result.sh "${joint_exp}" > "${joint_exp}"/RESULTS.md
         cat "${joint_exp}"/RESULTS.md
