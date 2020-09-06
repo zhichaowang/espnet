@@ -1,4 +1,4 @@
-batch_size: 32
+batch_size: 24
 #accum_grad: 8
 max_epoch: 200
 patience: none
@@ -45,6 +45,13 @@ enh_conf:
     nonlinear: relu
 
 # ASR Related
+frontend: default
+frontend_conf:
+    fs: 8000
+    n_fft: 256
+    win_length: 256
+    hop_length: 64
+
 encoder: transformer
 encoder_conf:
     output_size: 256
@@ -70,6 +77,7 @@ decoder_conf:
 asr_model_conf:
     ctc_weight: 0.3
     lsm_weight: 0.1
+    enh_weight: 0.99
     length_normalized_loss: false
 
 #enh_weight: 0.5
