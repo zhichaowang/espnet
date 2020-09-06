@@ -1,3 +1,4 @@
+from functools import reduce
 from itertools import combinations
 from itertools import permutations
 from itertools import product
@@ -17,6 +18,18 @@ from espnet2.torch_utils.device_funcs import force_gatherable
 from espnet2.train.abs_espnet_model import AbsESPnetModel
 
 
+ALL_LOSS_TYPES = (
+    # mse_loss(predicted_mask, target_label)
+    "mask_mse",
+    # mse_loss(enhanced_magnitude_spectrum, target_magnitude_spectrum)
+    "magnitude",
+    # mse_loss(enhanced_complex_spectrum, target_complex_spectrum)
+    "spectrum",
+    # si_snr(enhanced_waveform, target_waveform)
+    "si_snr",
+)
+
+
 class ESPnetEnhancementModel(AbsESPnetModel):
     """Speech enhancement or separation Frontend model"""
 
@@ -34,16 +47,7 @@ class ESPnetEnhancementModel(AbsESPnetModel):
         self.mask_type = getattr(self.enh_model, "mask_type", None)
         # get loss type for model training
         self.loss_type = getattr(self.enh_model, "loss_type", None)
-        assert self.loss_type in (
-            # mse_loss(predicted_mask, target_label)
-            "mask_mse",
-            # mse_loss(enhanced_magnitude_spectrum, target_magnitude_spectrum)
-            "magnitude",
-            # mse_loss(enhanced_complex_spectrum, target_complex_spectrum)
-            "spectrum",
-            # si_snr(enhanced_waveform, target_waveform)
-            "si_snr",
-        ), self.loss_type
+        assert self.loss_type in ALL_LOSS_TYPES, self.loss_type
         # for multi-channel signal
         self.ref_channel = getattr(self.enh_model, "ref_channel", -1)
 
@@ -182,6 +186,7 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                     self.enh_model.stft.inverse(ps, speech_lengths)[0]
                     for ps in speech_pre
                 ]
+                speech_ref = torch.unbind(speech_ref, dim=1)
                 if speech_ref[0].dim() == 3:
                     # For si_snr loss, only select one channel as the reference
                     speech_ref = [sr[..., self.ref_channel] for sr in speech_ref]
@@ -529,16 +534,7 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
         self, enh_model: Optional[AbsEnhancement],
     ):
         assert check_argument_types()
-
         super().__init__()
-
-        self.enh_model = enh_model
-        self.num_spk = enh_model.num_spk
-        self.num_noise_type = getattr(self.enh_model, "num_noise_type", 1)
-        # get mask type for TF-domain models
-        self.mask_type = getattr(self.enh_model, "mask_type", None)
-        # for multi-channel signal
-        self.ref_channel = getattr(self.enh_model, "ref_channel", -1)
 
         # For mixIT setting
         # self.sup_ratio= enh_model.sup_ratio
@@ -675,8 +671,6 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
                 speech_mix, speech_lengths
             )
 
-            # TODO:Chenda, Shall we add options for computing loss on
-            #  the masked spectrum?
             # compute TF masking loss
             if mask_pre is None:
                 # compute loss on magnitude spectrum instead

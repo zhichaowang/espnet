@@ -50,7 +50,7 @@ max_wav_duration=20    # Maximum duration in second
 
 # Joint model related
 joint_tag=    # Suffix to the result dir for enhancement model training.
-joint_config= # Config for ehancement model training.
+joint_config= # Config for ehancement + ASR model joint training.
 joint_args=   # Arguments for enhancement model training, e.g., "--max_epoch 10".
             # Note that it will overwrite args in enhancement config.
 joint_exp=    # Specify the direcotry path for ASR experiment. If this option is specified, joint_tag is ignored.
@@ -160,7 +160,7 @@ Options:
 
     # Enhancemnt model related
     --joint_tag    # Suffix to the result dir for enhancement model training (default="${joint_tag}").
-    --joint_config # Config for enhancement model training (default="${joint_config}").
+    --joint_config # Config for enhancement + ASR model joint training (default="${joint_config}").
     --joint_args   # Arguments for enhancement model training, e.g., "--max_epoch 10" (default="${joint_args}").
                  # Note that it will overwrite args in enhancement config.
     --spk_num    # Number of speakers in the input audio (default="${spk_num}")

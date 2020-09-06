@@ -50,7 +50,7 @@ audio_format=flac # Audio format (only in feats_type=raw).
 fs=16k            # Sampling rate.
 min_wav_duration=0.1   # Minimum duration in second
 max_wav_duration=20    # Maximum duration in second
-input_type=sound  # Input data type: sound / hdf5
+input_type=sound  # Input data type: sound / ark
 
 # Enhancement model related
 enh_exp=    # Specify the direcotry path for enhancement experiment. If this option is specified, enh_tag is ignored.

@@ -49,21 +49,19 @@ def signal_framing(
             if do_padding: (..., T, frame_length)
             else:          (..., T - bdelay - frame_length + 2, frame_length)
     """
-    if indices is None:
-        frame_length2 = frame_length - 1
-        # pad to the right at the last dimension of `signal` (time dimension)
-        if do_padding:
-            # (..., T) --> (..., T + bdelay + frame_length - 2)
-            signal = FC.pad(
-                signal, (bdelay + frame_length2 - 1, 0), "constant", pad_value
-            )
+    frame_length2 = frame_length - 1
+    # pad to the right at the last dimension of `signal` (time dimension)
+    if do_padding:
+        # (..., T) --> (..., T + bdelay + frame_length - 2)
+        signal = FC.pad(signal, (bdelay + frame_length2 - 1, 0), "constant", pad_value)
+        do_padding = False
 
-        # indices:
+    if indices is None:
         # [[ 0, 1, ..., frame_length2 - 1,              frame_length2 - 1 + bdelay ],
         #  [ 1, 2, ..., frame_length2,                  frame_length2 + bdelay     ],
         #  [ 2, 3, ..., frame_length2 + 1,              frame_length2 + 1 + bdelay ],
         #  ...
-        #  [ T-bdelay-frame_length2, ..., T-1-bdelay,   T-1 ]
+        #  [ T-bdelay-frame_length2, ..., T-1-bdelay,   T-1 ]]
         indices = [
             [*range(i, i + frame_length2), i + frame_length2 + bdelay - 1]
             for i in range(0, signal.shape[-1] - frame_length2 - bdelay + 1, frame_step)

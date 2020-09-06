@@ -1,7 +1,7 @@
 grad_clip: 5.0
 batch_type: folded
-batch_size: 120
-optim: adam
+batch_size: 30
+optim: sgd
 optim_conf:
     lr: 0.1
 lm: seq_rnn
