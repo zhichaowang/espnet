@@ -169,9 +169,9 @@ class ASRTask(AbsTask):
         )
 
         group.add_argument(
-            "--enh_model_conf",
+            "--joint_model_conf",
             action=NestedDictAction,
-            default=get_default_kwargs(ESPnetEnhancementModel),
+            default=get_default_kwargs(ESPnetEnhASRModel),
             help="The keyword arguments for model class.",
         )
 
@@ -300,6 +300,9 @@ class ASRTask(AbsTask):
 
         # 0. Build pre enhancement model
         enh_model = enh_choices.get_class(args.enh)(**args.enh_conf)
+        enh_model = ESPnetEnhancementModel(
+            enh_model
+        )
 
         # 1. frontend
         if args.input_size is None:
@@ -349,10 +352,8 @@ class ASRTask(AbsTask):
         # 7. RNN-T Decoder (Not implemented)
         rnnt_decoder = None
 
-        # 8. Build model
-        model = ESPnetEnhASRModel(
+        asr_model = ESPnetASRModel(
             vocab_size=vocab_size,
-            enh=enh_model,
             frontend=frontend,
             specaug=specaug,
             normalize=normalize,
@@ -362,6 +363,12 @@ class ASRTask(AbsTask):
             rnnt_decoder=rnnt_decoder,
             token_list=token_list,
             **args.asr_model_conf,
+        )
+        # 8. Build model
+        model = ESPnetEnhASRModel(
+            enh_model=enh_model,
+            asr_model=asr_model,
+            **args.joint_model_conf,
         )
 
         # FIXME(kamo): Should be done in model?
