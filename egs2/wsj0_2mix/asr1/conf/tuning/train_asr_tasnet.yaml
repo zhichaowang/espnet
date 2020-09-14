@@ -1,7 +1,6 @@
 batch_size: 4
 #accum_grad: 8
 max_epoch: 200
-log_interval: 10
 patience: none
 num_att_plot: 0
 # The initialization method for model parameters
@@ -77,5 +76,8 @@ decoder_conf:
 asr_model_conf:
     ctc_weight: 0.3
     lsm_weight: 0.1
-    enh_weight: 0.5
     length_normalized_loss: false
+
+joint_model_conf:
+    enh_weight: 0.5
+    end2end_train: true

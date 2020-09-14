@@ -43,8 +43,8 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         self,
         enh_model: Optional[ESPnetEnhancementModel],
         asr_model: Optional[ESPnetASRModel],
-        end2end_train: bool = True,
         enh_weight: float = 0.99,
+        end2end_train: bool = True
     ):
         assert check_argument_types()
         assert 0.0 <= asr_model.ctc_weight <= 1.0, asr_model.ctc_weight
@@ -63,9 +63,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         self.num_spk = enh_model.num_spk
 
         # self.end2end_train = False
-        self.end2end_train = True
-        # self.enh_attr = enh_model.__dict__.keys()
-        # self.asr_attr = asr_model.__dict__.keys()
+        self.end2end_train = end2end_train
         self.enh_attr = enh_model.__dir__()
         self.asr_attr = asr_model.__dir__()
 
