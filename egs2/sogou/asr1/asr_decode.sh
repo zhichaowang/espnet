@@ -59,7 +59,7 @@ bpe_char_cover=1.0  # character coverage when modeling BPE
 
 # Language model related
 use_lm=true       # Use language model for ASR decoding.
-lm_tag=11wh_mixLID           # Suffix to the result dir for language model training.
+lm_tag=1wh_mixLID           # Suffix to the result dir for language model training.
 lm_config=        # Config for language model training.
 lm_args=          # Arguments for language model training, e.g., "--max_epoch 10".
                   # Note that it will overwrite args in lm config.
@@ -69,7 +69,7 @@ num_splits_lm=1   # Number of splitting for lm corpus
 word_vocab_size=10000 # Size of word vocabulary.
 
 # ASR model related
-asr_tag=transformer_11wh_mixLID_16GPU    # Suffix to the result dir for asr model training.
+asr_tag=conformer_1wh_mixLID_8GPU_uttCMN_relPos_14E4D    # Suffix to the result dir for asr model training.
 asr_config= # Config for asr model training.
 asr_args=   # Arguments for asr model training, e.g., "--max_epoch 10".
             # Note that it will overwrite args in asr config.
@@ -77,13 +77,13 @@ asr_args=   # Arguments for asr model training, e.g., "--max_epoch 10".
 feats_normalize=utterance_mvn  # Normalizaton layer type
 num_splits_asr=10   # Number of splitting for lm corpus
 # Decoding related
-decode_tag=5epoch_5best_CTC0.5_lm0    # Suffix to the result dir for decoding.
+decode_tag=testTAG    # Suffix to the result dir for decoding.
 decode_config= # Config for decoding.
 decode_args=   # Arguments for decoding, e.g., "--lm_weight 0.1".
                # Note that it will overwrite args in decode config.
 decode_lm=valid.loss.best.pth       # Language modle path for decoding.
 #decode_asr_model=valid.acc.best.pth # ASR model path for decoding.
-decode_asr_model=5epoch.pth # ASR model path for decoding.
+decode_asr_model=valid.acc.ave.pth # ASR model path for decoding.
                                     # e.g.
                                     # decode_asr_model=train.loss.best.pth
                                     # decode_asr_model=3epoch.pth
