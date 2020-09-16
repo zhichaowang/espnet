@@ -6,16 +6,17 @@ set -u
 set -o pipefail
 
 min_or_max=max # Must be "max" for asr. This is to determine how the mixtures are generated in local/data.sh.
-sample_rate=16k
+sample_rate=8k
 
 
-train_set=tr_spatialized_anechoic_multich_${min_or_max}_${sample_rate}
-valid_set=cv_spatialized_anechoic_multich_${min_or_max}_${sample_rate}
-test_sets="tt_spatialized_anechoic_multich_${min_or_max}_${sample_rate}"
+train_set="tr_${min_or_max}_${sample_rate}"
+valid_set="cv_${min_or_max}_${sample_rate}"
+test_sets="tt_${min_or_max}_${sample_rate}"
 
 ./enh_asr.sh \
     --lang "en" \
     --nbpe 5000 \
+    --max_wav_duration 15 \
     --nlsyms_txt data/nlsyms.txt \
     --token_type char \
     --lm_config conf/tuning/train_lm.yaml \
@@ -26,4 +27,5 @@ test_sets="tt_spatialized_anechoic_multich_${min_or_max}_${sample_rate}"
     --fs "${sample_rate}" \
     --ngpu 4 \
     --local_data_opts "--sample_rate ${sample_rate} --min_or_max ${min_or_max}" \
-    --srctexts "data/${train_set}/text_spk1 data/${train_set}/text_spk2" "$@"
+    --srctexts "data/train_si284/text data/local/other_text/text" "$@"
+    "$@"
