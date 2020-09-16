@@ -23,7 +23,7 @@ min() {
 SECONDS=0
 
 # General configuration
-stage=10          # Processes starts from the specified stage.
+stage=11          # Processes starts from the specified stage.
 stop_stage=12    # Processes is stopped at the specified stage.
 ngpu=8           # The number of gpus ("0" uses cpu, otherwise use gpu).
 num_nodes=1      # The number of nodes

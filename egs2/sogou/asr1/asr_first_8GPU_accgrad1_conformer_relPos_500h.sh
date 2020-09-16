@@ -23,7 +23,7 @@ min() {
 SECONDS=0
 
 # General configuration
-stage=10          # Processes starts from the specified stage.
+stage=11          # Processes starts from the specified stage.
 stop_stage=12    # Processes is stopped at the specified stage.
 ngpu=8           # The number of gpus ("0" uses cpu, otherwise use gpu).
 num_nodes=1      # The number of nodes
@@ -69,7 +69,7 @@ num_splits_lm=1   # Number of splitting for lm corpus
 word_vocab_size=10000 # Size of word vocabulary.
 
 # ASR model related
-asr_tag=conformer_relPos_triangle_500h    # Suffix to the result dir for asr model training.
+asr_tag=conformer_relPos_500h_forDecode    # Suffix to the result dir for asr model training.
 asr_config= # Config for asr model training.
 asr_args=   # Arguments for asr model training, e.g., "--max_epoch 10".
             # Note that it will overwrite args in asr config.

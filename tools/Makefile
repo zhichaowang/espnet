@@ -40,8 +40,12 @@ ifeq ($(strip $(CPU_ONLY)),)
 # Derive CUDA version from nvcc
 CUDA_VERSION = $(shell nvcc --version | grep "Cuda compilation tools" | cut -d" " -f5 | sed s/,//)
 CUDA_VERSION_WITHOUT_DOT = $(strip $(subst .,,$(CUDA_VERSION)))
-CONDA_PYTORCH := pytorch=$(TH_VERSION) cudatoolkit=$(CUDA_VERSION)
 PIP_PYTORCH := torch==$(TH_VERSION) -f https://download.pytorch.org/whl/cu$(CUDA_VERSION_WITHOUT_DOT)/torch_stable.html
+ifeq ($(strip $(CUDA_VERSION_WITHOUT_DOT)),80)
+CONDA_PYTORCH := pytorch=$(TH_VERSION) cuda$(CUDA_VERSION_WITHOUT_DOT)
+else
+CONDA_PYTORCH := pytorch=$(TH_VERSION) cudatoolkit=$(CUDA_VERSION)
+endif
 
 else
 CONDA_PYTORCH := pytorch=$(TH_VERSION) cpuonly
@@ -66,7 +70,7 @@ else
 python: activate_python.sh warp-ctc.done warp-transducer.done espnet.done pytorch.done
 endif
 
-extra: nkf.done moses.done mwerSegmenter.done pesq kenlm.done pyopenjtalk.done
+extra: nkf.done moses.done mwerSegmenter.done pesq kenlm.done pyopenjtalk.done py3mmseg.done
 
 kaldi:
 	test -f kaldi/egs/wsj/s5/utils/parse_options.sh || { echo -e "Error: Put Kaldi here!\n    $$ ln -s <kaldi-root> kaldi"; exit 1; }
@@ -109,7 +113,7 @@ sox.done: activate_python.sh
 	. ./activate_python.sh && { command -v sox || conda install -y sox -c conda-forge; }
 	touch sox.done
 sndfile.done: activate_python.sh
-	. ./activate_python.sh && { python3 -c "from ctypes.util import find_library as F; assert F('sndfile') is not None" || conda install -y libsndfile -c conda-forge; }
+	. ./activate_python.sh && { python3 -c "from ctypes.util import find_library as F; assert F('sndfile') is not None" || conda install -y libsndfile=1.0.28 -c conda-forge; }
 	touch sndfile.done
 ifneq ($(strip $(IS_CONDA)),)
 conda_packages.done: cmake.done flac.done ffmpeg.done sox.done sndfile.done
@@ -149,7 +153,7 @@ ifneq ($(strip $(NO_CUPY)),)
 else
 	# Precompiled cupy==6.0.0 for python>=3.8 is not provided
 	. ./activate_python.sh && \
-		if python3 -c "import sys; from distutils.version import LooseVersion as L; assert L(sys.version) <= L('3.7')" 2>1 /dev/null; then \
+		if python3 -c "import sys; from distutils.version import LooseVersion as L; assert L(sys.version) < L('3.8')" 2>&1 /dev/null; then \
 			python3 -m pip install $(PIP_CHAINER) cupy-cuda$(CUDA_VERSION_WITHOUT_DOT)==$(CHAINER_VERSION); \
 		else \
 			python3 -m pip install $(PIP_CHAINER) cupy==$(CHAINER_VERSION); \
@@ -194,6 +198,9 @@ pesq: PESQ/P862_annex_A_2005_CD/source/PESQ
 PESQ/P862_annex_A_2005_CD/source/PESQ:
 	./installers/install_pesq.sh
 
+py3mmseg.done: espnet.done
+	. ./activate_python.sh && ./installers/install_py3mmseg.sh
+	touch py3mmseg.done
 
 check_install: python
 ifeq ($(strip $(CPU_ONLY)),)
