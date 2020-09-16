@@ -26,10 +26,10 @@ SECONDS=0
 stage=11          # Processes starts from the specified stage.
 stop_stage=12    # Processes is stopped at the specified stage.
 ngpu=8           # The number of gpus ("0" uses cpu, otherwise use gpu).
-num_nodes=2      # The number of nodes
+num_nodes=1      # The number of nodes
 nj=40            # The number of parallel jobs.
-decode_nj=40     # The number of parallel jobs in decoding.
-gpu_decode=false # Whether to perform gpu decoding.
+decode_nj=8     # The number of parallel jobs in decoding.
+gpu_decode=true # Whether to perform gpu decoding.
 dumpdir=dump     # Directory to dump features.
 expdir=exp       # Directory to save experiments.
 
@@ -59,7 +59,7 @@ bpe_char_cover=1.0  # character coverage when modeling BPE
 
 # Language model related
 use_lm=true       # Use language model for ASR decoding.
-lm_tag=1wh_mixLID           # Suffix to the result dir for language model training.
+lm_tag=           # Suffix to the result dir for language model training.
 lm_config=        # Config for language model training.
 lm_args=          # Arguments for language model training, e.g., "--max_epoch 10".
                   # Note that it will overwrite args in lm config.
@@ -69,15 +69,15 @@ num_splits_lm=1   # Number of splitting for lm corpus
 word_vocab_size=10000 # Size of word vocabulary.
 
 # ASR model related
-asr_tag=conformer_1wh_mixLID_8GPU_uttCMN_relPos_14E4D    # Suffix to the result dir for asr model training.
+asr_tag=conformer_relPos_500h_forDecode    # Suffix to the result dir for asr model training.
 asr_config= # Config for asr model training.
 asr_args=   # Arguments for asr model training, e.g., "--max_epoch 10".
             # Note that it will overwrite args in asr config.
 #feats_normalize=global_mvn  # Normalizaton layer type
-feats_normalize=utterance_mvn  # Normalizaton layer type
-num_splits_asr=10   # Number of splitting for lm corpus
+feats_normalize=  # Normalizaton layer type
+num_splits_asr=1   # Number of splitting for lm corpus
 # Decoding related
-decode_tag=testTAG    # Suffix to the result dir for decoding.
+decode_tag=8GPU_batch1_beam5_batchScore    # Suffix to the result dir for decoding.
 decode_config= # Config for decoding.
 decode_args=   # Arguments for decoding, e.g., "--lm_weight 0.1".
                # Note that it will overwrite args in decode config.
@@ -221,7 +221,7 @@ bpedir="data/token_list/bpe_${bpemode}${nbpe}"
 bpeprefix="${bpedir}"/model
 bpemodel="${bpeprefix}".model
 bpetoken_list="${bpedir}"/tokens.txt
-chartoken_list=data/token_list/char/tokens.txt
+chartoken_list=data/token_list/char/bpe_5k/tokens.txt
 # NOTE: keep for future development.
 # shellcheck disable=SC2034
 wordtoken_list=data/token_list/word/tokens.txt
@@ -287,8 +287,8 @@ if [ -z "${decode_tag}" ]; then
 fi
 
 # The directory used for collect-stats mode
-asr_stats_dir="${expdir}/asr_11wh_mixLID_stats"
-lm_stats_dir="${expdir}/lm_11wh_mixLID_stats"
+asr_stats_dir="${expdir}/asr_stats"
+lm_stats_dir="${expdir}/lm_stats"
 # The directory used for training commands
 asr_exp="${expdir}/asr_${asr_tag}"
 lm_exp="${expdir}/lm_${lm_tag}"
@@ -823,8 +823,6 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
         _opts+="--normalize=global_mvn --normalize_conf stats_file=${asr_stats_dir}/train/feats_stats.npz"
     elif [ "${feats_normalize}" = none ]; then
         _opts+="--normalize=None"
-    elif [ "${feats_normalize}" = utterance_mvn ]; then
-        _opts+="--normalize=utterance_mvn "
     fi
     
     if [ "${num_splits_asr}" -gt 1 ]; then
@@ -870,9 +868,7 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
         --cmd "${cuda_cmd} --name ${asr_exp}/train.log" \
         --log "${asr_exp}"/train.log \
         --ngpu "${ngpu}" \
-        --host "10.141.251.17,10.141.250.17"  \
-        --master_port 59735 \
-        --master_addr "10.141.251.17"  \
+        --num_nodes "${num_nodes}" \
         --init_file_prefix "${asr_exp}"/.dist_init_ \
         --multiprocessing_distributed true -- \
         python3 -m espnet2.bin.asr_train \
@@ -950,7 +946,7 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
         log "Decoding started... log: '${_logdir}/asr_inference.*.log'"
         # shellcheck disable=SC2086
         ${_cmd} --gpu "${_ngpu}" JOB=1:"${_nj}" "${_logdir}"/asr_inference.JOB.log \
-            python3 -m espnet2.bin.asr_inference \
+         CUDA_VISIBLE_DEVICES=\$[JOB-1]   python3 -m espnet2.bin.asr_inference \
                 --ngpu "${_ngpu}" \
                 --data_path_and_name_and_type "${_data}/${_scp},speech,${_type}" \
                 --key_file "${_logdir}"/keys.JOB.scp \
@@ -973,7 +969,7 @@ if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
     log "Stage 12: Scoring"
 
     for dset in ${eval_sets}; do
-        _data="${data_feats}/${dset}"
+        _data="data/${dset}"
         _dir="${asr_exp}/decode_${dset}_${decode_tag}"
 
         for _type in cer; do
@@ -1007,10 +1003,16 @@ if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
 
             elif [ "${_type}" = cer ]; then
                 # Tokenize text to char level
-                 paste <(<"${_data}/text" awk -F" " '{for(i=2; i<=NF; i++)printf("%s ", $i);print ""}')  \
+                 echo $_dir
+                 echo $_data
+                 echo $_scoredir
+                 paste \
+                       <(<"${_data}/text" awk -F" " '{for(i=2; i<=NF; i++)printf("%s ", $i);print ""}')  \
                        <(<"${_data}/text" awk '{print "(" $1 ")"}')  \
                        >"${_scoredir}/ref.trn"   
-                 paste <(<"${_dir}/token" awk -F" " '{for(i=2; i<=NF; i++)printf("%s ", $i);print ""}')  \
+
+                 paste \
+                       <(<"${_dir}/token" awk -F" " '{for(i=2; i<=NF; i++)printf("%s ", $i);print ""}')  \
                        <(<"${_dir}/text" awk '{print "(" $1 ")"}')  \
                        >"${_scoredir}/hyp.trn"
                  

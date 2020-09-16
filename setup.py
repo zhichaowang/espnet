@@ -18,7 +18,7 @@ requirements = {
         "editdistance==0.5.2",
         "gdown",
         "espnet_model_zoo",
-        "ctc-segmentation",
+        "ctc-segmentation>=1.0.6",
         # DNN related packages are installed by Makefile
         # 'torch==1.0.1'
         # "chainer==6.0.0",
@@ -61,7 +61,7 @@ requirements = {
         "pytest>=3.3.0",
         "pytest-pythonpath>=0.7.3",
         "pytest-cov>=2.7.1",
-        "hacking>=1.1.0",
+        "hacking>=2.0.0",
         "mock>=2.0.0",
         "pycodestyle",
         "jsondiff>=1.2.0",
@@ -118,7 +118,7 @@ extras_require = {
 dirname = os.path.dirname(__file__)
 setup(
     name="espnet",
-    version="0.9.1",
+    version="0.9.3",
     url="http://github.com/espnet/espnet",
     author="Shinji Watanabe",
     author_email="shinjiw@ieee.org",
