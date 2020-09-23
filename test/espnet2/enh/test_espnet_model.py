@@ -60,7 +60,15 @@ def test_forward_with_tasnet(training, loss_type, num_spk):
     ilens = torch.LongTensor([160, 120])
     speech_refs = [torch.randn(2, 160).float() for spk in range(num_spk)]
     model = TasNet(
-        N=5, L=20, B=5, H=10, P=3, X=8, R=4, num_spk=num_spk, loss_type=loss_type,
+        N=5,
+        L=20,
+        B=5,
+        H=10,
+        P=3,
+        X=8,
+        R=4,
+        num_spk=num_spk,
+        loss_type=loss_type,
     )
     enh_model = ESPnetEnhancementModel(model)
     if training:
