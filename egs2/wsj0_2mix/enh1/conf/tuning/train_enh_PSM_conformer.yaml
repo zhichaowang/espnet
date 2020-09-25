@@ -31,16 +31,16 @@ enh_conf:
     n_fft: 256
     hop_length: 128
     num_spk: 2
-    utt_mvn: False
+    utt_mvn: false
     nonlinear: relu
     rnn_type: conformer                         # blstm, transofrmer or conformer
     layer: 3                                    # rnn related
     unit: 896
     dropout: 0.5
-    adim:  256                                  # transformer related
-    aheads: 4
+    adim:  256  # tune                                  # transformer related
+    aheads: 4   # tune
     elayers: 3
-    eunits: 1536
+    eunits: 896  # tune
     transformer_enc_dropout_rate: 0.1            # dropout rate for transformer encoder layer
     transformer_enc_positional_dropout_rate: 0.1 # dropout rate for transformer encoder positional encoding
     transformer_enc_attn_dropout_rate: 0.1       # dropout rate for transformer encoder attention layer
@@ -55,7 +55,7 @@ enh_conf:
     conformer_activation_type: swish             # conformer activation type
     use_macaron_style_in_conformer: true         # whether to use macaron style in conformer
     use_cnn_in_conformer: true                   # whether to use CNN in conformer
-    conformer_enc_kernel_size: 15                # kernel size in CNN module of conformer-based encoder
+    conformer_enc_kernel_size: 7                 # kernel size in CNN module of conformer-based encoder
 
 
 

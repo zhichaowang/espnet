@@ -1,5 +1,5 @@
 batch_size: 4
-#accum_grad: 8
+accum_grad: 8
 max_epoch: 200
 patience: none
 num_att_plot: 0
@@ -83,7 +83,7 @@ asr_model_conf:
     length_normalized_loss: false
 
 joint_model_conf:
-    enh_weight: 0.5
+    enh_weight: 0.8
     end2end_train: true
     enh_return_type: waveform # waveform or spectrum or none
     cal_enh_loss: true # weather to calculate enh_loss, need the reduce in ctc_conf

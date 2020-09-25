@@ -318,7 +318,7 @@ def inference(
         key_file=key_file,
         num_workers=num_workers,
         preprocess_fn=ASRTask.build_preprocess_fn(speech2text.joint_train_args, False),
-        collate_fn=ASRTask.build_collate_fn(speech2text.joint_train_args),
+        collate_fn=ASRTask.build_collate_fn(speech2text.joint_train_args, False),
         allow_variable_data_keys=allow_variable_data_keys,
         inference=True,
     )
