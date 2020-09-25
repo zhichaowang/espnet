@@ -300,9 +300,7 @@ class ASRTask(AbsTask):
 
         # 0. Build pre enhancement model
         enh_model = enh_choices.get_class(args.enh)(**args.enh_conf)
-        enh_model = ESPnetEnhancementModel(
-            enh_model
-        )
+        enh_model = ESPnetEnhancementModel(enh_model)
 
         # 1. frontend
         if args.input_size is None:
