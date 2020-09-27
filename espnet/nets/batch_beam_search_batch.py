@@ -11,16 +11,17 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 
 from espnet.nets.beam_search import BeamSearch
+from espnet.nets.e2e_asr_common import end_detect
 from espnet.nets.beam_search import Hypothesis
 
 
 class BatchHypothesis(NamedTuple):
     """Batchfied/Vectorized hypothesis data type."""
 
-    yseq: torch.Tensor = torch.tensor([])  # (batch, maxlen)
-    score: torch.Tensor = torch.tensor([])  # (batch,)
-    length: torch.Tensor = torch.tensor([])  # (batch,)
-    scores: Dict[str, torch.Tensor] = dict()  # values: (batch,)
+    yseq: torch.Tensor  # (batch * beam, maxlen)
+    score: torch.Tensor  # (batch, beam)
+    length: torch.Tensor  # (batch * beam)
+    scores: Dict[str, torch.Tensor] = dict()  # values: (batch, beam)
     states: Dict[str, Dict] = dict()
 
     def __len__(self) -> int:
@@ -28,7 +29,7 @@ class BatchHypothesis(NamedTuple):
         return len(self.length)
 
 
-class BatchBeamSearch(BeamSearch):
+class BatchBeamSearchBatch(BeamSearch):
     """Batch beam search implementation."""
 
     def batchfy(self, hyps: List[Hypothesis]) -> BatchHypothesis:
@@ -44,6 +45,11 @@ class BatchBeamSearch(BeamSearch):
             scores={k: torch.tensor([h.scores[k] for h in hyps]) for k in self.scorers},
             states={k: [h.states[k] for h in hyps] for k in self.scorers},
         )
+   
+    def _batch_reset(self, hyps: BatchHypothesis, ids: List[int]) -> BatchHypothesis:
+        #hyps.score[ids] = 0.0
+        hyps.length[ids] = 0
+        return hyps
 
     def _batch_select(self, hyps: BatchHypothesis, ids: List[int]) -> BatchHypothesis:
         return BatchHypothesis(
@@ -83,15 +89,15 @@ class BatchBeamSearch(BeamSearch):
         ]
 
     def batch_beam(
-        self, weighted_scores: torch.Tensor, ids: torch.Tensor
+        self, weighted_scores: torch.Tensor, ids: torch.Tensor, batch_size: int
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Batch-compute topk full token ids and partial token ids.
 
         Args:
             weighted_scores (torch.Tensor): The weighted sum scores for each tokens.
-                Its shape is `(n_beam, self.vocab_size)`.
+                Its shape is `(batch * n_beam, self.vocab_size)`.
             ids (torch.Tensor): The partial token ids to compute topk.
-                Its shape is `(n_beam, self.pre_beam_size)`.
+                Its shape is `(batch_size * n_beam, self.pre_beam_size)`.
 
         Returns:
             Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -100,12 +106,13 @@ class BatchBeamSearch(BeamSearch):
                 Their shapes are all `(self.beam_size,)`
 
         """
-        top_ids = weighted_scores.view(-1).topk(self.beam_size)[1]
+        top_ids = weighted_scores.view(batch_size, -1).topk(self.beam_size)[1]
         # Because of the flatten above, `top_ids` is organized as:
         # [hyp1 * V + token1, hyp2 * V + token2, ..., hypK * V + tokenK],
         # where V is `self.n_vocab` and K is `self.beam_size`
-        prev_hyp_ids = top_ids // self.n_vocab
-        new_token_ids = top_ids % self.n_vocab
+        index_batch = (torch.arange(batch_size) * self.beam_size).view(-1, 1).to(weighted_scores.device)
+        prev_hyp_ids = (top_ids // self.n_vocab + index_batch).view(-1)
+        new_token_ids = (top_ids % self.n_vocab).view(-1)
         return prev_hyp_ids, new_token_ids, prev_hyp_ids, new_token_ids
 
     def init_hyp(self, x: torch.Tensor) -> BatchHypothesis:
@@ -130,18 +137,19 @@ class BatchBeamSearch(BeamSearch):
                     scores=init_scores,
                     states=init_states,
                     yseq=torch.tensor([self.sos], device=x.device),
-                )
+                ) for _ in range(x.shape[0])
             ]
         )
 
     def score_full(
-        self, hyp: BatchHypothesis, x: torch.Tensor
+        self, hyp: BatchHypothesis, x: torch.Tensor, ilens: torch.Tensor
     ) -> Tuple[Dict[str, torch.Tensor], Dict[str, Any]]:
         """Score new hypothesis by `self.full_scorers`.
 
         Args:
             hyp (Hypothesis): Hypothesis with prefix tokens to score
             x (torch.Tensor): Corresponding input feature
+            ilens (torch.Tensor): Input feature length
 
         Returns:
             Tuple[Dict[str, torch.Tensor], Dict[str, Any]]: Tuple of
@@ -154,7 +162,7 @@ class BatchBeamSearch(BeamSearch):
         scores = dict()
         states = dict()
         for k, d in self.full_scorers.items():
-            scores[k], states[k] = d.batch_score(hyp.yseq, hyp.states[k], x)
+            scores[k], states[k] = d.batch_score_batch(hyp.yseq, hyp.length, hyp.states[k], x, ilens)
         return scores, states
 
     def score_partial(
@@ -204,26 +212,29 @@ class BatchBeamSearch(BeamSearch):
             new_states[k] = v
         return new_states
 
-    def search(self, running_hyps: BatchHypothesis, x: torch.Tensor) -> BatchHypothesis:
+    def search(self, running_hyps: BatchHypothesis, x: torch.Tensor, ilens: torch.Tensor) -> BatchHypothesis:
         """Search new tokens for running hypotheses and encoded speech x.
 
         Args:
             running_hyps (BatchHypothesis): Running hypotheses on beam
-            x (torch.Tensor): Encoded speech feature (T, D)
+            x (torch.Tensor): Encoded speech feature (Batch * beam, T, D)
+            ilens (torch.Tensor): Encoded speech length (Batch * beam,)
 
         Returns:
             BatchHypothesis: Best sorted hypotheses
 
         """
         n_batch = len(running_hyps)
+        batch_size = n_batch // self.beam_size
         part_ids = None  # no pre-beam
         # batch scoring
         weighted_scores = torch.zeros(
             n_batch, self.n_vocab, dtype=x.dtype, device=x.device
         )
-        scores, states = self.score_full(running_hyps, x.expand(n_batch, *x.shape))
+        scores, states = self.score_full(running_hyps, x, ilens)
         for k in self.full_scorers:
             weighted_scores += self.weights[k] * scores[k]
+
         # partial scoring
         if self.do_pre_beam:
             pre_beam_scores = (
@@ -236,6 +247,7 @@ class BatchBeamSearch(BeamSearch):
         # full-size score matrices, which has non-zero scores for part_ids and zeros
         # for others.
         part_scores, part_states = self.score_partial(running_hyps, part_ids, x)
+  
         for k in self.part_scorers:
             weighted_scores += self.weights[k] * part_scores[k]
         # add previous hyp scores
@@ -243,17 +255,28 @@ class BatchBeamSearch(BeamSearch):
             dtype=x.dtype, device=x.device
         ).unsqueeze(1)
 
+        # mask weighted_scores
+        score_mask = running_hyps.length.eq(0).unsqueeze(1).to(weighted_scores.device)
+        weighted_scores = weighted_scores.masked_fill(score_mask, self.logzero)
         # TODO(karita): do not use list. use batch instead
         # see also https://github.com/espnet/espnet/pull/1402#discussion_r354561029
         # update hyps
         best_hyps = []
         prev_hyps = self.unbatchfy(running_hyps)
+
+        # handle the first token
+        if running_hyps.length[0] == 1:
+            batch_index = torch.arange(batch_size) * self.beam_size 
+            search_scores = weighted_scores[batch_index]
+        else:
+            search_scores = weighted_scores
+
         for (
             full_prev_hyp_id,
             full_new_token_id,
             part_prev_hyp_id,
             part_new_token_id,
-        ) in zip(*self.batch_beam(weighted_scores, part_ids)):
+        ) in zip(*self.batch_beam(search_scores, part_ids, batch_size)):
             prev_hyp = prev_hyps[full_prev_hyp_id]
             best_hyps.append(
                 Hypothesis(
@@ -283,28 +306,124 @@ class BatchBeamSearch(BeamSearch):
             )
         return self.batchfy(best_hyps)
 
+    def forward(
+        self, x: torch.Tensor, ilens: torch.Tensor, maxlenratio: float = 0.0, minlenratio: float = 0.0
+    ) -> List[Hypothesis]:
+        """Perform beam search.
+
+        Args:
+            x (torch.Tensor): Encoded speech feature (B, T, D)
+            ilens (torch.Tensor): Encoded speech length (B,)
+            maxlenratio (float): Input length ratio to obtain max output length.
+                If maxlenratio=0.0 (default), it uses a end-detect function
+                to automatically find maximum hypothesis lengths
+            minlenratio (float): Input length ratio to obtain min output length.
+
+        Returns:
+            list[Hypothesis]: N-best decoding results
+
+        """
+        # set length bounds
+        batch_size = len(ilens)
+        if maxlenratio == 0:
+            maxlen = int(max(ilens))
+        else:
+            maxlen = max(1, int(maxlenratio * max(ilens)))
+        minlen = int(minlenratio * maxlen)
+        logging.info(f"decoder input length: {ilens}")
+        logging.info("max output length: " + str(maxlen))
+        logging.info("min output length: " + str(minlen))
+        logging.info("output lengths:" + str(ilens))
+        
+        # expand x to exp_x: (Batch*beam, T, D)
+        exp_x = x.unsqueeze(1).repeat(1, self.beam_size, 1, 1).contiguous()
+        exp_x = exp_x.view(batch_size*self.beam_size, x.size()[1], x.size()[2])
+
+        # expand ilens to exp_ilens(Batch*beam, )
+        exp_ilens = ilens.repeat(self.beam_size).view(self.beam_size, batch_size).transpose(0, 1).contiguous()
+        exp_ilens = exp_ilens.view(-1)        
+
+        # main loop of prefix search
+        running_hyps = self.init_hyp(exp_x)
+        ended_hyps = [[] for _ in range(batch_size)]
+        stop_search = [ False for _ in range(batch_size)]
+        for i in range(maxlen):
+            logging.debug("position " + str(i))
+            best = self.search(running_hyps, exp_x, exp_ilens)
+            # post process of one iteration
+            running_hyps = self.post_process(i, ilens, maxlenratio, best, ended_hyps, stop_search)
+            # end detection
+            for utt_i in range(batch_size):
+                if maxlenratio == 0.0 and end_detect([h.asdict() for h in ended_hyps[utt_i]], i):
+                    logging.info(f"end detected at {i} in utterance {utt_i}")
+                    stop_search[utt_i] = True
+                    end_ids = [ids for ids in range(utt_i * self.beam_size, (utt_i + 1) * self.beam_size)]
+                    running_hyps = self._batch_reset(running_hyps, end_ids)
+            if running_hyps.length.sum() == 0:
+                logging.info("no hypothesis. Finish decoding.")
+                break
+            else:
+                logging.debug(f"remained hypotheses: {len(torch.nonzero(running_hyps.length).view(-1))}")
+
+        nbest_hyps = [sorted(ended_hyps[utt_i], key=lambda x: x.score, reverse=True) for utt_i in range(batch_size)]
+        # check the number of hypotheses reaching to eos
+        nbest_num = [len(nbest_hyps[utt_i]) for utt_i in range(batch_size)]
+        if 0 in nbest_num:
+            logging.warning(
+                "there is no N-best results, perform recognition "
+                "again with smaller minlenratio."
+            )
+            return (
+                nbest_hyps
+                if minlenratio < 0.1
+                else self.forward(x, maxlenratio, max(0.0, minlenratio - 0.1))
+            )
+        # report the best result
+        for utt_i in range(batch_size):
+            best = nbest_hyps[utt_i][0]
+            for k, v in best.scores.items():
+                logging.info(
+                    f"{v:6.2f} * {self.weights[k]:3} = {v * self.weights[k]:6.2f} for {k}"
+                )
+            logging.info(f"total log probability: {best.score:.2f}")
+            logging.info(f"normalized log probability: {best.score / len(best.yseq):.2f}")
+            logging.info(f"total number of ended hypotheses: {len(nbest_hyps)}")
+            if self.token_list is not None:
+                logging.info(
+                    "best hypo: "
+                    + "".join([self.token_list[x] for x in best.yseq[1:-1]])
+                    + "\n"
+                )
+#        import sys
+#        sys.exit()
+        return nbest_hyps
+
+
     def post_process(
         self,
         i: int,
-        maxlen: int,
+        ilens: torch.Tensor,
         maxlenratio: float,
         running_hyps: BatchHypothesis,
         ended_hyps: List[Hypothesis],
+        stop_search: List[bool]
     ) -> BatchHypothesis:
         """Perform post-processing of beam search iterations.
 
         Args:
             i (int): The length of hypothesis tokens.
-            maxlen (int): The maximum length of tokens in beam search.
+            ilens (torch.Tensor): The maximum output lengths of tokens in beam search.
             maxlenratio (int): The maximum length ratio in beam search.
             running_hyps (BatchHypothesis): The running hypotheses in beam search.
             ended_hyps (List[Hypothesis]): The ended hypotheses in beam search.
+            stop_search (List[bool]): The ended flag in beam search.
 
         Returns:
             BatchHypothesis: The new running hypotheses.
 
         """
         n_batch = running_hyps.yseq.shape[0]
+        batch_size = len(ilens)
         logging.debug(f"the number of running hypothes: {n_batch}")
         if self.token_list is not None:
             logging.debug(
@@ -317,32 +436,41 @@ class BatchBeamSearch(BeamSearch):
                 )
             )
         # add eos in the final loop to avoid that there are no ended hyps
-        if i == maxlen - 1:
-            logging.info("adding <eos> in the last position in the loop")
-            yseq_eos = torch.cat(
-                (
-                    running_hyps.yseq,
-                    torch.full(
-                        (n_batch, 1),
-                        self.eos,
-                        device=running_hyps.yseq.device,
-                        dtype=torch.int64,
-                    ),
-                ),
-                1,
-            )
-            running_hyps.yseq.resize_as_(yseq_eos)
-            running_hyps.yseq[:] = yseq_eos
-            running_hyps.length[:] = yseq_eos.shape[1]
-
-        # add ended hypotheses to a final list, and removed them from current hypotheses
-        # (this will be a probmlem, number of hyps < beam)
+        maxlen = max(1, int(maxlenratio * max(ilens)))
+        for utt_i in range(batch_size):
+            if stop_search[utt_i]:
+                # reset lengths of ended hyps
+                running_hyps.length[utt_i * self.beam_size:(utt_i + 1) * self.beam_size]=torch.full((self.beam_size, ), 0, device=running_hyps.length.device, dtype=torch.int64) 
+                continue
+            if i == ilens[utt_i] - 1:
+                stop_search[utt_i] = True
+                logging.info(f"adding <eos> in the last position in th loop for utterance: ilens[utt_i]")
+                # add ended hypotheses to a final list
+                for beam_j in range(self.beam_size):
+                    ended_hyps[utt_i].append(
+                        Hypothesis(
+                            yseq=self.append_token(running_hyps.yseq[utt_i * self.beam_size + beam_j], self.eos),
+                            score=running_hyps.score[utt_i * self.beam_size + beam_j],
+                            scores={k: v[utt_i * self.beam_size + beam_j] for k, v in running_hyps.scores.items()},
+                            states={k: self.scorers[k].select_state(v, utt_i * self.beam_size + beam_j) for k, v in running_hyps.states.items()},
+                        )
+                    ) 
+                    running_hyps.length[utt_i * self.beam_size + beam_j] = 0
+                
         is_eos = (
             running_hyps.yseq[torch.arange(n_batch), running_hyps.length - 1]
             == self.eos
         )
-        for b in torch.nonzero(is_eos).view(-1):
+        # mask stop search hyps
+        end_mask = (running_hyps.length != 0).to(is_eos.device)
+        is_eos = is_eos & end_mask
+        ended_ids = torch.nonzero(is_eos).view(-1)
+        for b in ended_ids:
             hyp = self._select(running_hyps, b)
-            ended_hyps.append(hyp)
-        remained_ids = torch.nonzero(is_eos == 0).view(-1)
-        return self._batch_select(running_hyps, remained_ids)
+            ended_hyps[b // self.beam_size].append(hyp)
+        running_hyps = self._batch_reset(running_hyps, ended_ids)
+        for utt_i in range(batch_size):
+            if stop_search[utt_i]:
+                continue
+            stop_search[utt_i] = (running_hyps.length[utt_i * self.beam_size:(utt_i + 1)*self.beam_size].sum() == 0)
+        return running_hyps

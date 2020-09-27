@@ -77,7 +77,7 @@ asr_args=   # Arguments for asr model training, e.g., "--max_epoch 10".
 feats_normalize=  # Normalizaton layer type
 num_splits_asr=1   # Number of splitting for lm corpus
 # Decoding related
-decode_tag=8GPU_batch1_beam5_batchScore    # Suffix to the result dir for decoding.
+decode_tag=8GPU_batch1_beam5_batchScore_tmp    # Suffix to the result dir for decoding.
 decode_config= # Config for decoding.
 decode_args=   # Arguments for decoding, e.g., "--lm_weight 0.1".
                # Note that it will overwrite args in decode config.

@@ -223,6 +223,42 @@ class BaseTransformerDecoder(AbsDecoder, BatchScorerInterface):
         state_list = [[states[i][b] for i in range(n_layers)] for b in range(n_batch)]
         return logp, state_list
 
+    def batch_score_batch(self, ys: torch.Tensor, ys_length: torch.Tensor, states: List[Any], exp_h, exp_hlens):
+        """Score batch.
+        
+           ys (torch.Tensor): Input token ids, int64 (Batch * Beam, len_out)
+           ys_length (torch.Tensor): Input token length (Batch * Beam,)
+           states (List[Any]): Scorer states for prefix tokens.
+           exp_h (torch.Tensor): Encoded speech feature (Batch * Beam, T, D)
+           exp_hlens (torch.Tensor): Encoded speech length (Batch * Beam,) 
+        Returns:
+
+           score: Decoded token score before softmax (Batch * Beam, token)
+                if use_output_layer is True,
+           olens: (batch, )
+        """
+        # ys_mask: (B, 1, L)
+        ys_mask = (~make_pad_mask(ys_length)[:, None, :]).to(ys.device)
+        # m: (1, L, L)
+        m = subsequent_mask(ys_mask.size(-1), device=ys_mask.device).unsqueeze(0)
+        # ys_mask: (B, L, L)
+        ys_mask = ys_mask & m
+        
+        memory = exp_h
+        memory_mask = (~make_pad_mask(exp_hlens))[:, None, :].to(memory.device)
+
+        x = self.embed(ys)
+        x, ys_mask, memory, memory_mask = self.decoders(
+            x, ys_mask, memory, memory_mask
+        )
+
+        if self.normalize_before:
+            y = self.after_norm(x[:, -1])
+        if self.output_layer is not None:
+            logp = torch.log_softmax(self.output_layer(y), dim=-1)
+
+        return logp, states
+
 
 class TransformerDecoder(BaseTransformerDecoder):
     def __init__(

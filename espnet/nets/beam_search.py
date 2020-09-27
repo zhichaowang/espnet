@@ -109,6 +109,7 @@ class BeamSearch(torch.nn.Module):
             and self.pre_beam_size < self.n_vocab
             and len(self.part_scorers) > 0
         )
+        self.logzero = -10000000000.0
 
     def init_hyp(self, x: torch.Tensor) -> List[Hypothesis]:
         """Get an initial hypothesis data.

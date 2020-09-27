@@ -8,7 +8,8 @@ set -o pipefail
 train_set=train_sogou_fbank_500h
 dev_set=test8000_sogou
 #eval_sets="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou testNewLong_sogou testmeeting_cat_agc-1218_sogou"
-eval_sets="test8000_sogou"
+eval_sets="not_on_screen_sogou"
+#eval_sets="test8000_sogou"
 
 asr_config=conf/train_asr_conformer_relPos_first_8GPU_accgrad1_500h.yaml
 decode_config=conf/decode_asr_transformer.yaml
