@@ -1,4 +1,4 @@
-batch_size: 24
+batch_size: 4
 #accum_grad: 8
 max_epoch: 200
 patience: none

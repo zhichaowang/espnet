@@ -170,9 +170,11 @@ class Speech2Text:
     def __call__(
         self,
         speech_mix: Union[torch.Tensor, np.ndarray],
-        speech_ref1: Union[torch.Tensor, np.ndarray],
-        speech_ref2: Union[torch.Tensor, np.ndarray],
-    ) -> List[List[Tuple[float, Optional[str], List[str], List[int], Hypothesis]]]:
+        speech_ref1: Union[torch.Tensor, np.ndarray] = None,
+        speech_ref2: Union[torch.Tensor, np.ndarray] = None,
+    ) -> List[
+        List[Tuple[Optional[float], Optional[str], List[str], List[int], Hypothesis]]
+    ]:
         """Inference
 
         Args:
@@ -196,22 +198,30 @@ class Speech2Text:
 
         # a. To device
         batch = to_device(batch, device=self.device)
-
-        speech_pre, *__ = self.joint_model.enh_model.forward_rawwav(
-            batch["speech"], batch["speech_lengths"]
-        )
-        ref = np.array(
-            torch.stack([speech_ref1, speech_ref2], dim=0).squeeze()
-        )  # nspk,T
-        inf = np.array(torch.stack(speech_pre, dim=1).squeeze())
-        sdr, sir, sar, perm = bss_eval_sources(ref, inf, compute_permutation=True)
+        if self.joint_model.cal_enh_loss:
+            speech_pre, *__ = self.joint_model.enh_model.forward_rawwav(
+                batch["speech"], batch["speech_lengths"]
+            )
+            speech_pre_lengths = batch['speech_lengths']
+            ref = np.array(
+                torch.stack([speech_ref1, speech_ref2], dim=0).squeeze()
+            )  # nspk,T
+            inf = np.array(torch.stack(speech_pre, dim=1).squeeze())
+            sdr, sir, sar, perm = bss_eval_sources(ref, inf, compute_permutation=True)
+        else:
+            _, _, speech_pre, speech_pre_lengths = self.joint_model.forward_enh(
+                batch['speech'],
+                batch['speech_lengths'],
+            )
+            sdr, sir, sar, perm = None, None, None, np.arange(0, len(speech_pre))
 
         # b. Forward Encoder
         results_list = []
         # For each predicted spk
         for idx, p in enumerate(perm):
             speech_spk = speech_pre[int(p)]
-            enc, _ = self.joint_model.encode(speech_spk, batch["speech_lengths"])
+            # enc, _ = self.joint_model.encode(speech_spk, batch['speech_lengths'])
+            enc, _ = self.joint_model.encode(speech_spk, speech_pre_lengths)
             assert len(enc) == 1, len(enc)
 
             # c. Passed the encoder result and the beam search
@@ -237,7 +247,12 @@ class Speech2Text:
                     text = self.tokenizer.tokens2text(token)
                 else:
                     text = None
-                results.append((float(sdr[idx]), text, token, token_int, hyp))
+                if sdr is not None:
+                    sdr_rslt = float(sdr[idx])
+                else:
+                    sdr_rslt = None
+
+                results.append((sdr_rslt, text, token, token_int, hyp))
 
             results_list.append(results)
 
@@ -358,7 +373,8 @@ def inference(
                     if text is not None:
                         ibest_writer["text"][key] = text
 
-                    writer[f"SDR_spk{spk_idx + 1}"][key] = str(sdr)
+                    if sdr is not None:
+                        writer[f"SDR_spk{spk_idx + 1}"][key] = str(sdr)
 
 
 def get_parser():
