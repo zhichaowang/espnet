@@ -27,6 +27,8 @@ ALL_LOSS_TYPES = (
     "spectrum",
     # si_snr(enhanced_waveform, target_waveform)
     "si_snr",
+    # no looss
+    None,
 )
 
 
