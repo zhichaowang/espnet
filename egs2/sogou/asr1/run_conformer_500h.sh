@@ -5,12 +5,12 @@ set -e
 set -u
 set -o pipefail
 
-train_set=train
-valid_set=dev
-test_sets="dev test"
+train_set=train_sogou_fbank_500h
+valid_set=test8000_sogou
+test_sets="test8000_sogou"
 
-asr_config=conf/train_asr_rnn.yaml
-inference_config=conf/decode_asr_rnn.yaml
+asr_config=conf/train_asr_conformer_relPos_swish_8GPU_accgrad1_500h.yaml
+inference_config=conf/decode_asr_transformer.yaml
 
 lm_config=conf/train_lm.yaml
 use_lm=true
@@ -18,12 +18,12 @@ use_wordlm=false
 
 # speed perturbation related
 # (train_set will be "${train_set}_sp" if speed_perturb_factors is specified)
-speed_perturb_factors="0.9 1.0 1.1"
+speed_perturb_factors=
 
-./asr.sh                                               \
+./asr_conformer_8GPU_500h.sh                           \
     --lang zh                                          \
     --audio_format wav                                 \
-    --feats_type fbank_pitch                           \
+    --feats_type extracted                             \
     --token_type char                                  \
     --use_lm ${use_lm}                                 \
     --use_word_lm ${use_wordlm}                        \

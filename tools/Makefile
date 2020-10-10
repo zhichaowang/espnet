@@ -1,12 +1,3 @@
-PYTHON :=~/anaconda3/bin/python
-# If you already have anaconda and you'll create an env in it,
-# Give the path with "CONDA". e.g. make CONDA=/your/anaconda
-CONDA := venv
-CONDA_ENV_NAME := espnet
-# The python version installed in the conda setup
-# NOTE(kan-bayashi): Use 3.7.3 to avoid sentencepiece installation error
-PYTHON_VERSION := 3.7.3
-# If empty string is given, chainer is not installed
 # If a Python interpreter is specified, then creates a virtualenv from it
 # If empty string is given, chainer is not installed. Note that ESPnet doesn't support any versions except for chainer=6.0.0
 CHAINER_VERSION := 6.0.0
@@ -14,8 +5,6 @@ CHAINER_VERSION := 6.0.0
 NO_CUPY :=
 # PyTorch version: 0.4.1, 1.0.0, 1.0.1, 1.1.0, 1.2.0, 1.3.0, 1.3.1, 1.4.0, 1.5.0, 1.5.1, 1.6.0
 TH_VERSION := 1.4.0
-# Use a prebuild Kaldi to omit the installation
-KALDI :=/nfsdata/kaldi-master
 WGET := wget --tries=3
 
 # Use pip for pytorch installation even if you have anaconda

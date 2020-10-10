@@ -82,7 +82,6 @@ encoder_choices = ClassChoices(
     classes=dict(
         conformer=ConformerEncoder,
         transformer=TransformerEncoder,
-        conformer=ConformerEncoder,
         vgg_rnn=VGGRNNEncoder,
         rnn=RNNEncoder,
     ),
