@@ -4,8 +4,8 @@ encoder: transformer
 encoder_conf:
     output_size: 384    # dimension of attention
     attention_heads: 6
-    linear_units: 3072  # the number of units of position-wise feed forward
-    num_blocks: 14      # the number of encoder blocks
+    linear_units: 2560  # the number of units of position-wise feed forward
+    num_blocks: 16      # the number of encoder blocks
     dropout_rate: 0.1
     positional_dropout_rate: 0.1
     attention_dropout_rate: 0.0
@@ -16,8 +16,8 @@ encoder_conf:
 decoder: transformer
 decoder_conf:
     attention_heads: 6
-    linear_units: 3072
-    num_blocks: 4
+    linear_units: 2560
+    num_blocks: 2
     dropout_rate: 0.1
     positional_dropout_rate: 0.1
     self_attention_dropout_rate: 0.0
@@ -25,7 +25,7 @@ decoder_conf:
 
 # hybrid CTC/attention
 model_conf:
-    ctc_weight: 0.2
+    ctc_weight: 0.3
     lsm_weight: 0.1     # label smoothing option
     length_normalized_loss: false
 
@@ -33,13 +33,14 @@ model_conf:
 #batch_type: folded
 #batch_size: 32
 batch_type: length
-batch_bins: 204800 
+batch_bins: 204800
+num_iters_per_epoch: 10000
 
 # optimization related
 accum_grad: 1
 grad_clip: 5
-patience: None
-max_epoch: 24
+patience: 3
+max_epoch: 50
 val_scheduler_criterion:
     - valid
     - acc
@@ -48,7 +49,6 @@ best_model_criterion:
     - acc
     - max
 keep_nbest_models: 10
-init: xavier_uniform
 
 # NoamLR is deprecated. Use WarmupLR.
 # The following is equivalent setting for NoamLR:
