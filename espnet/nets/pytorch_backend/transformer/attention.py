@@ -204,3 +204,222 @@ class RelPositionMultiHeadedAttention(MultiHeadedAttention):
         )  # (batch, head, time1, time2)
 
         return self.forward_attention(v, scores, mask)
+
+class FsmnMultiHeadedAttention(MultiHeadedAttention):
+    """Multi-Head Attention layer with FSMN block.
+
+    Paper: https://arxiv.org/abs/2006.01713
+
+    Args:
+        n_head (int): The number of heads.
+        n_feat (int): The number of features.
+        dropout_rate (float): Dropout rate.
+        n_memory (int): The number of memories.
+        left_frames (int): The number of left memory frames.
+        right_frames (int): The number of right memory frames.
+        memory_stride (int): The number of memory stride. 
+
+    """
+
+    def __init__(self, n_head, n_feat, dropout_rate, n_memory, left_frames=1, right_frames=1, memory_stride=1):
+        """Construct an FsmnMultiHeadedAttention object."""
+        super().__init__(n_head, n_feat, dropout_rate)
+
+        self.n_memory = n_memory
+        self.left_frames = left_frames
+        self.right_frames = right_frames
+  
+        # in linear project to reduce parameters
+        self.in_conv = nn.Conv1d(
+            n_feat,
+            self.n_memory,
+            kernel_size=1,
+            bias=False,
+        )
+
+        if self.left_frames > 0:
+            self.left_conv = nn.Sequential(
+                nn.ConstantPad1d([memory_stride * self.left_frames, -memory_stride], 0),
+                nn.Conv1d(
+                    self.n_memory,
+                    self.n_memory,
+                    kernel_size=self.left_frames,
+                    dilation=memory_stride,
+                    bias=False,
+                    groups=self.n_memory,
+                )
+            )
+
+        if self.right_frames > 0:
+            self.right_conv = nn.Sequential(
+                nn.ConstantPad1d([-memory_stride, self.right_frames * memory_stride], 0),
+                nn.Conv1d(
+                    self.n_memory,
+                    self.n_memory,
+                    kernel_size=self.right_frames,
+                    dilation=memory_stride,
+                    bias=False,
+                    groups=self.n_memory,
+                )
+            )
+   
+        # output linear affine
+        self.out_conv = nn.Conv1d(
+            self.n_memory,
+            n_feat,
+            kernel_size=1
+        )
+
+    def forward(self, query, key, value, mask):
+        """Compute scaled dot product attention.
+
+        Args:
+            query (torch.Tensor): Query tensor (#batch, time1, size).
+            key (torch.Tensor): Key tensor (#batch, time2, size).
+            value (torch.Tensor): Value tensor (#batch, time2, size).
+            mask (torch.Tensor): Mask tensor (#batch, 1, time2) or
+                (#batch, time1, time2).
+
+        Returns:
+            torch.Tensor: Output tensor (#batch, time1, d_model).
+
+        """
+        q, k, v = self.forward_qkv(query, key, value)
+        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)
+        x_atten = self.forward_attention(v, scores, mask)
+
+        # fsmn computation
+        n_batch = v.size(0)
+        v_m = v.transpose(1, 2).contiguous().view(n_batch, -1, self.h * self.d_k)  # (batch, time2, d_model)
+        v_m = v_m.transpose(1, 2)  # (batch, d_model, time2)
+        v_project = self.in_conv(v_m)
+ 
+        left_memory = self.left_conv(v_project) if self.left_frames > 0 else 0
+        right_memory = self.right_conv(v_project) if self.right_frames > 0 else 0
+
+        x_memory = self.out_conv(v_project + left_memory + right_memory).transpose(1, 2)
+        x_memory = x_memory[:, -x_atten.shape[1]:, :]
+
+        return x_atten + x_memory
+
+class FsmnRelPositionMultiHeadedAttention(RelPositionMultiHeadedAttention):
+    """Multi-Head Attention layer with relative position encoding and FSMN block.
+
+    Paper: https://arxiv.org/abs/2006.01713
+
+    Args:
+        n_head (int): The number of heads.
+        n_feat (int): The number of features.
+        dropout_rate (float): Dropout rate.
+        n_memory (int): The number of memories.
+        left_frames (int): The number of left memory frames.
+        right_frames (int): The number of right memory frames.
+        memory_stride (int): The number of memory stride. 
+
+    """
+
+    def __init__(self, n_head, n_feat, dropout_rate, n_memory, left_frames=1, right_frames=1, memory_stride=1):
+        """Construct an RelPositionMultiHeadedAttention object."""
+        super().__init__(n_head, n_feat, dropout_rate)
+
+        self.n_memory = n_memory
+        self.left_frames = left_frames
+        self.right_frames = right_frames
+  
+        # in linear project to reduce parameters
+        self.in_conv = nn.Conv1d(
+            n_feat,
+            self.n_memory,
+            kernel_size=1,
+            bias=False,
+        )
+
+        if self.left_frames > 0:
+            self.left_conv = nn.Sequential(
+                nn.ConstantPad1d([memory_stride * self.left_frames, -memory_stride], 0),
+                nn.Conv1d(
+                    self.n_memory,
+                    self.n_memory,
+                    kernel_size=self.left_frames,
+                    dilation=memory_stride,
+                    bias=False,
+                    groups=self.n_memory,
+                )
+            )
+
+        if self.right_frames > 0:
+            self.right_conv = nn.Sequential(
+                nn.ConstantPad1d([-memory_stride, self.right_frames * memory_stride], 0),
+                nn.Conv1d(
+                    self.n_memory,
+                    self.n_memory,
+                    kernel_size=self.right_frames,
+                    dilation=memory_stride,
+                    bias=False,
+                    groups=self.n_memory,
+                )
+            )
+   
+        # output linear affine
+        self.out_conv = nn.Conv1d(
+            self.n_memory,
+            n_feat,
+            kernel_size=1
+        )
+
+    def forward(self, query, key, value, pos_emb, mask):
+        """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
+
+        Args:
+            query (torch.Tensor): Query tensor (#batch, time1, size).
+            key (torch.Tensor): Key tensor (#batch, time2, size).
+            value (torch.Tensor): Value tensor (#batch, time2, size).
+            pos_emb (torch.Tensor): Positional embedding tensor (#batch, time2, size).
+            mask (torch.Tensor): Mask tensor (#batch, 1, time2) or
+                (#batch, time1, time2).
+
+        Returns:
+            torch.Tensor: Output tensor (#batch, time1, d_model).
+
+        """
+        q, k, v = self.forward_qkv(query, key, value)
+        q = q.transpose(1, 2)  # (batch, time1, head, d_k)
+
+        n_batch_pos = pos_emb.size(0)
+        p = self.linear_pos(pos_emb).view(n_batch_pos, -1, self.h, self.d_k)
+        p = p.transpose(1, 2)  # (batch, head, time1, d_k)
+
+        # (batch, head, time1, d_k)
+        q_with_bias_u = (q + self.pos_bias_u).transpose(1, 2)
+        # (batch, head, time1, d_k)
+        q_with_bias_v = (q + self.pos_bias_v).transpose(1, 2)
+
+        # compute attention score
+        # first compute matrix a and matrix c
+        # as described in https://arxiv.org/abs/1901.02860 Section 3.3
+        # (batch, head, time1, time2)
+        matrix_ac = torch.matmul(q_with_bias_u, k.transpose(-2, -1))
+
+        # compute matrix b and matrix d
+        # (batch, head, time1, time2)
+        matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
+        matrix_bd = self.rel_shift(matrix_bd)
+
+        scores = (matrix_ac + matrix_bd) / math.sqrt(
+            self.d_k
+        )  # (batch, head, time1, time2)
+    
+        x_atten = self.forward_attention(v, scores, mask)
+
+        # fsmn computation
+        n_batch = v.size(0)
+        v_m = v.transpose(1, 2).contiguous().view(n_batch, -1, self.h * self.d_k)  # (batch, time2, d_model)
+        v_m = v_m.transpose(1, 2)  # (batch, d_model, time2)
+        v_project = self.in_conv(v_m)
+ 
+        left_memory = self.left_conv(v_project) if self.left_frames > 0 else 0
+        right_memory = self.right_conv(v_project) if self.right_frames > 0 else 0
+
+        x_memory = self.out_conv(v_project + left_memory + right_memory)
+
+        return x_atten + x_memory.transpose(1, 2)

@@ -17,6 +17,7 @@ from espnet.nets.pytorch_backend.nets_utils import make_pad_mask
 from espnet.nets.pytorch_backend.transformer.attention import (
     MultiHeadedAttention,  # noqa: H301
     RelPositionMultiHeadedAttention,  # noqa: H301
+    FsmnRelPositionMultiHeadedAttention,
 )
 from espnet.nets.pytorch_backend.transformer.embedding import (
     PositionalEncoding,  # noqa: H301
@@ -87,6 +88,10 @@ class ConformerEncoder(AbsEncoder):
         activation_type: str = "swish",
         use_cnn_module: bool = True,
         cnn_module_kernel: int = 31,
+        memory_units: int = 128,
+        left_frames: int = 1,
+        right_frames: int = 1, 
+        memory_stride: int = 1,
         padding_idx: int = -1,
     ):
         assert check_argument_types()
@@ -99,7 +104,7 @@ class ConformerEncoder(AbsEncoder):
         elif pos_enc_layer_type == "scaled_abs_pos":
             pos_enc_class = ScaledPositionalEncoding
         elif pos_enc_layer_type == "rel_pos":
-            assert selfattention_layer_type == "rel_selfattn"
+            assert selfattention_layer_type != "selfattn"
             pos_enc_class = RelPositionalEncoding
         else:
             raise ValueError("unknown pos_enc_layer: " + pos_enc_layer_type)
@@ -190,6 +195,18 @@ class ConformerEncoder(AbsEncoder):
                 attention_heads,
                 output_size,
                 attention_dropout_rate,
+            )
+        elif selfattention_layer_type == "rel_sanm":
+            assert pos_enc_layer_type == "rel_pos"
+            encoder_selfattn_layer = FsmnRelPositionMultiHeadedAttention
+            encoder_selfattn_layer_args = (
+                attention_heads,
+                output_size,
+                attention_dropout_rate,
+                memory_units,
+                left_frames,
+                right_frames,
+                memory_stride,
             )
         else:
             raise ValueError("unknown encoder_attn_layer: " + selfattention_layer_type)

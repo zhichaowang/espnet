@@ -5,12 +5,12 @@ set -e
 set -u
 set -o pipefail
 
-train_set=train_sogou_fbank_500h
-valid_set=test8000_sogou
-test_sets="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou"
+train_set=train_sogou_fbank_11w_2020Q4_nodup_LID_sort
+valid_set=train_sogou_fbank_11w_and_S1_dev_LID_200h
+test_sets="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou testmeeting_cat_agc-1218_sogou testreport_cat_agc_1-2m-1218_sogou testreport_cat_agc_2-4m-1218_sogou testreport_cat_agc_4-6m-1218_sogou testNewLong_sogou test0918_sogou"
 
-asr_config=conf/train_asr_conformer_fsmn_ENCDEC_8GPU_accgrad1_500h.yaml
-inference_config=conf/decode_asr_transformer.yaml
+asr_config=conf/train_asr_conformer_relPos_noMacaron_swish_16GPU_accgrad1_14E4D_11wh.yaml
+inference_config=conf/decode_asr_transformer_lm0.2_5best.yaml
 
 lm_config=conf/train_lm.yaml
 use_lm=true
@@ -20,7 +20,7 @@ use_wordlm=false
 # (train_set will be "${train_set}_sp" if speed_perturb_factors is specified)
 speed_perturb_factors=
 
-./asr_conformer_8GPU_500h.sh                           \
+./asr_conformer_16GPU_11wh.sh                           \
     --lang zh                                          \
     --audio_format wav                                 \
     --feats_type extracted                             \
