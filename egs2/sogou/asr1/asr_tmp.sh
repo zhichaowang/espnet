@@ -77,7 +77,7 @@ asr_args=   # Arguments for asr model training, e.g., "--max_epoch 10".
 feats_normalize=  # Normalizaton layer type
 num_splits_asr=1   # Number of splitting for lm corpus
 # Decoding related
-decode_tag=8GPU_batch100_beam5_sort    # Suffix to the result dir for decoding.
+decode_tag=8GPU_batch10_beam5_sort_tmp    # Suffix to the result dir for decoding.
 decode_config= # Config for decoding.
 decode_args=   # Arguments for decoding, e.g., "--lm_weight 0.1".
                # Note that it will overwrite args in decode config.
@@ -950,7 +950,7 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
                 --ngpu "${_ngpu}" \
                 --data_path_and_name_and_type "${_data}/${_scp},speech,${_type}" \
                 --key_file "${_logdir}"/keys.JOB.scp \
-                --batch_size 100 \
+                --batch_size 10 \
                 --asr_train_config "${asr_exp}"/config.yaml \
                 --asr_model_file "${asr_exp}"/"${decode_asr_model}" \
                 --output_dir "${_logdir}"/output.JOB \

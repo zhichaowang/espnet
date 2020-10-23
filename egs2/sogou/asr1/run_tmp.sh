@@ -12,7 +12,7 @@ dev_set=test8000_sogou
 eval_sets="test8000_sogou_sort"
 
 asr_config=conf/train_asr_conformer_relPos_first_8GPU_accgrad1_500h.yaml
-decode_config=conf/decode_asr_transformer.yaml
+decode_config=conf/decode_tmp.yaml
 
 lm_config=conf/train_lm.yaml
 use_lm=false
