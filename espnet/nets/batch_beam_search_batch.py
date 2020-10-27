@@ -394,8 +394,6 @@ class BatchBeamSearchBatch(BeamSearch):
                     + "".join([self.token_list[x] for x in best.yseq[1:-1]])
                     + "\n"
                 )
-#        import sys
-#        sys.exit()
         return nbest_hyps
 
 
