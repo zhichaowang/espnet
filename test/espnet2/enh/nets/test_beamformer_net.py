@@ -34,7 +34,7 @@ from espnet2.enh.nets.beamformer_net import BeamformerNet
 @pytest.mark.parametrize("ref_channel", [-1, 0])
 @pytest.mark.parametrize("use_noise_mask", [True, False])
 @pytest.mark.parametrize("bnonlinear", ["sigmoid", "relu", "tanh", "crelu"])
-@pytest.mark.parametrize("beamformer_type", ["mvdr", "mpdr", "wpd"])
+@pytest.mark.parametrize("beamformer_type", ["mvdr_souden", "mpdr_souden", "wpd_souden"])
 @pytest.mark.parametrize("bdropout_rate", [0.0, 0.2])
 def test_beamformer_net_forward_backward(
     n_fft,
@@ -133,7 +133,7 @@ def test_beamformer_net_forward_backward(
 @pytest.mark.parametrize("badim", [10])
 @pytest.mark.parametrize("ref_channel", [-1, 0])
 @pytest.mark.parametrize("use_noise_mask", [True, False])
-@pytest.mark.parametrize("beamformer_type", ["mvdr", "mpdr", "wpd"])
+@pytest.mark.parametrize("beamformer_type", ["mvdr_souden", "mpdr_souden", "wpd_souden"])
 @pytest.mark.parametrize("bdropout_rate", [0.0, 0.2])
 def test_beamformer_net_consistency(
     n_fft,
