@@ -34,7 +34,7 @@ def test_forward_with_beamformer_net(
         use_beamformer=True,
         ref_channel=0,
         use_noise_mask=use_noise_mask,
-        beamformer_type="mvdr",
+        beamformer_type="mvdr_souden",
     )
     enh_model = ESPnetEnhancementModel(model)
     if training:

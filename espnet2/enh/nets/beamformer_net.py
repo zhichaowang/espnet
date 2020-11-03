@@ -39,6 +39,8 @@ class BeamformerNet(AbsEnhancement):
         delay: int = 3,
         use_dnn_mask_for_wpe: bool = True,
         wnonlinear: str = "crelu",
+        multi_source_wpe: bool = True,
+        wnormalization: bool = False,
         # Beamformer options
         use_beamformer: bool = True,
         bnet_type: str = "blstmp",
@@ -49,8 +51,10 @@ class BeamformerNet(AbsEnhancement):
         ref_channel: int = -1,
         use_noise_mask: bool = True,
         bnonlinear: str = "sigmoid",
-        beamformer_type="mvdr",
-        bdropout_rate=0.0,
+        beamformer_type: str = "mvdr_souden",
+        rtf_iterations: int = 2,
+        bdropout_rate: float = 0.0,
+        shared_power: bool = True,
     ):
         super(BeamformerNet, self).__init__()
 
@@ -88,15 +92,17 @@ class BeamformerNet(AbsEnhancement):
             self.wpe = DNN_WPE(
                 wtype=wnet_type,
                 widim=self.num_bin,
+                wlayers=wlayers,
                 wunits=wunits,
                 wprojs=wprojs,
-                wlayers=wlayers,
+                dropout_rate=wdropout_rate,
                 taps=taps,
                 delay=delay,
-                dropout_rate=wdropout_rate,
-                iterations=iterations,
                 use_dnn_mask=use_dnn_mask_for_wpe,
+                nmask=1 if multi_source_wpe else num_spk,
                 nonlinear=wnonlinear,
+                iterations=iterations,
+                normalization=wnormalization,
             )
         else:
             self.wpe = None
@@ -104,11 +110,11 @@ class BeamformerNet(AbsEnhancement):
         self.ref_channel = ref_channel
         if self.use_beamformer:
             self.beamformer = DNN_Beamformer(
-                btype=bnet_type,
                 bidim=self.num_bin,
+                btype=bnet_type,
+                blayers=blayers,
                 bunits=bunits,
                 bprojs=bprojs,
-                blayers=blayers,
                 num_spk=num_spk,
                 use_noise_mask=use_noise_mask,
                 nonlinear=bnonlinear,
@@ -116,11 +122,15 @@ class BeamformerNet(AbsEnhancement):
                 badim=badim,
                 ref_channel=ref_channel,
                 beamformer_type=beamformer_type,
+                rtf_iterations=rtf_iterations,
                 btaps=taps,
                 bdelay=delay,
             )
         else:
             self.beamformer = None
+
+        # share speech powers between WPE and beamforming (wMPDR/WPD)
+        self.shared_power = shared_power and use_wpe
 
     def forward(self, input: torch.Tensor, ilens: torch.Tensor):
         """Forward.
@@ -154,7 +164,12 @@ class BeamformerNet(AbsEnhancement):
         enhanced = input_spectrum
         masks = OrderedDict()
 
-        if self.training and self.loss_type and self.loss_type.startswith("mask") and self.train_mask_only:
+        if (
+            self.training
+            and self.loss_type is not None
+            and self.loss_type.startswith("mask")
+            and self.train_mask_only
+        ):
             # Only estimating masks for training
             if self.use_wpe:
                 if input_spectrum.dim() == 3:
@@ -163,16 +178,13 @@ class BeamformerNet(AbsEnhancement):
                     )
                     mask_w = mask_w.squeeze(-2)
                 elif input_spectrum.dim() == 4:
-                    if self.use_beamformer:
-                        enhanced, flens, mask_w = self.wpe(input_spectrum, flens)
-                    else:
-                        mask_w, flens = self.wpe.predict_mask(input_spectrum, flens)
+                    mask_w, flens = self.wpe.predict_mask(input_spectrum, flens)
 
                 if mask_w is not None:
                     masks["dereverb"] = mask_w
 
             if self.use_beamformer and input_spectrum.dim() == 4:
-                masks_b, flens = self.beamformer.predict_mask(enhanced, flens)
+                masks_b, flens = self.beamformer.predict_mask(input_spectrum, flens)
                 for spk in range(self.num_spk):
                     masks["spk{}".format(spk + 1)] = masks_b[spk]
                 if len(masks_b) > self.num_spk:
@@ -181,11 +193,12 @@ class BeamformerNet(AbsEnhancement):
             return None, flens, masks
 
         else:
+            powers = None
             # Performing both mask estimation and enhancement
             if input_spectrum.dim() == 3:
                 # single-channel input (B, T, F)
                 if self.use_wpe:
-                    enhanced, flens, mask_w = self.wpe(
+                    enhanced, flens, mask_w, powers = self.wpe(
                         input_spectrum.unsqueeze(-2), flens
                     )
                     enhanced = enhanced.squeeze(-2)
@@ -195,14 +208,29 @@ class BeamformerNet(AbsEnhancement):
                 # multi-channel input (B, T, C, F)
                 # 1. WPE
                 if self.use_wpe:
-                    enhanced, flens, mask_w = self.wpe(input_spectrum, flens)
+                    enhanced, flens, mask_w, powers = self.wpe(input_spectrum, flens)
                     if mask_w is not None:
                         masks["dereverb"] = mask_w
 
                 # 2. Beamformer
                 if self.use_beamformer:
+                    if (
+                        not self.beamformer.beamformer_type.startswith("wmpdr")
+                        or not self.beamformer.beamformer_type.startswith("wpd")
+                        or not self.shared_power
+                        or (self.wpe.nmask == 1 and self.num_spk > 1)
+                    ):
+                        powers = None
+
                     # enhanced: (B, T, C, F) -> (B, T, F)
-                    enhanced, flens, masks_b = self.beamformer(enhanced, flens)
+                    if isinstance(enhanced, list):
+                        # outputs of single-source WPE
+                        raise NotImplementedError("Single-source WPE is not supported.")
+                    else:
+                        # output of multi-source WPE
+                        enhanced, flens, masks_b = self.beamformer(
+                            enhanced, flens, powers=powers
+                        )
                     for spk in range(self.num_spk):
                         masks["spk{}".format(spk + 1)] = masks_b[spk]
                     if len(masks_b) > self.num_spk:
@@ -215,7 +243,7 @@ class BeamformerNet(AbsEnhancement):
             enhanced = [torch.stack([enh.real, enh.imag], dim=-1) for enh in enhanced]
         else:
             # single-speaker output
-            enhanced = torch.stack([enhanced.real, enhanced.imag], dim=-1).float()
+            enhanced = [torch.stack([enhanced.real, enhanced.imag], dim=-1)]
         return enhanced, flens, masks
 
     def forward_rawwav(self, input: torch.Tensor, ilens: torch.Tensor):

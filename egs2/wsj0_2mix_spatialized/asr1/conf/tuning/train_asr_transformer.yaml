@@ -58,7 +58,7 @@ enh_conf:
     badim: 320
     ref_channel: 0
     use_noise_mask: False
-    beamformer_type: mvdr
+    beamformer_type: mvdr_souden
     bdropout_rate: 0.0
 
 # ASR Related
