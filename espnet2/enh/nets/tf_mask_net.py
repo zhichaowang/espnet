@@ -61,7 +61,6 @@ class TFMaskingNet(AbsEnhancement):
         use_macaron_style_in_conformer: bool = True,
         use_cnn_in_conformer: bool = True,
         conformer_enc_kernel_size: int = 7,
-
     ):
         super(TFMaskingNet, self).__init__()
 
@@ -106,6 +105,9 @@ class TFMaskingNet(AbsEnhancement):
                 concat_after=encoder_concat_after,
                 positionwise_layer_type=positionwise_layer_type,
                 positionwise_conv_kernel_size=positionwise_conv_kernel_size,
+            )
+            self.linear = torch.nn.ModuleList(
+                [torch.nn.Linear(adim, self.num_bin) for _ in range(self.num_spk)]
             )
         elif rnn_type == "conformer":
             self.rnn = ConformerEncoder(
@@ -186,10 +188,12 @@ class TFMaskingNet(AbsEnhancement):
             input_magnitude_mvn = input_magnitude
 
         # predict masks for each speaker
-        if self.rnn_type == 'blstm':
+        if self.rnn_type == "blstm":
             x, flens, _ = self.rnn(input_magnitude_mvn, flens)
-        else: # transformer-based encoders
-            pad_mask = make_non_pad_mask(flens).unsqueeze(1).to(input_magnitude_mvn.device)
+        else:  # transformer-based encoders
+            pad_mask = (
+                make_non_pad_mask(flens).unsqueeze(1).to(input_magnitude_mvn.device)
+            )
             # print('pad_mask:', pad_mask.shape, pad_mask[:,:,-10:])
             x, flens = self.rnn(input_magnitude_mvn, pad_mask)
         masks = []

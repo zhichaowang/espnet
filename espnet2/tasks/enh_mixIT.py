@@ -102,13 +102,20 @@ class EnhancementTask(AbsTask):
             help="Number of sources for each mixture",
         )
         group.add_argument(
-            "--M_per_MoM", type=int, default=8, help="M for each mixture of mixtures",
+            "--M_per_MoM",
+            type=int,
+            default=8,
+            help="M for each mixture of mixtures",
         )
         group.add_argument(
-            "--ratio_supervised", type=float, default=0.2,
+            "--ratio_supervised",
+            type=float,
+            default=0.2,
         )
         group.add_argument(
-            "--SNR_max", type=int, default=30,
+            "--SNR_max",
+            type=int,
+            default=30,
         )
         for class_choices in cls.class_choices_list:
             # Append --<name> and --<name>_conf.
@@ -138,7 +145,7 @@ class EnhancementTask(AbsTask):
 
     @classmethod
     def required_data_names(
-            cls, train: bool = True, inference: bool = False
+        cls, train: bool = True, inference: bool = False
     ) -> Tuple[str, ...]:
         if not inference:
             retval = ("speech_mix", "speech_ref1")
@@ -149,7 +156,7 @@ class EnhancementTask(AbsTask):
 
     @classmethod
     def optional_data_names(
-            cls, train: bool = True, inference: bool = False
+        cls, train: bool = True, inference: bool = False
     ) -> Tuple[str, ...]:
         retval = ["dereverb_ref"]
         retval += ["mix_ref1"]

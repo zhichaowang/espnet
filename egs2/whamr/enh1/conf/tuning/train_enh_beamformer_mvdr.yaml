@@ -28,7 +28,7 @@ scheduler_conf:
 enh: wpe_beamformer
 enh_conf:
     mask_type: PSM^2
-    n_fft: 512
+    n_fft: 256
     win_length: null
     hop_length: 128
     num_spk: 1
@@ -49,6 +49,6 @@ enh_conf:
     bprojs: 512
     badim: 320
     ref_channel: 0
-    use_noise_mask: False
-    beamformer_type: mvdr
+    use_noise_mask: True
+    beamformer_type: mvdr_souden
     bdropout_rate: 0.0

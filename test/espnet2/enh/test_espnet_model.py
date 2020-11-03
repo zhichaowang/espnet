@@ -23,6 +23,7 @@ def test_forward_with_beamformer_net(
     noise_ref1 = torch.randn(2, 16, ch).float()
     dereverb_ref = torch.randn(2, 16, ch).float()
     model = BeamformerNet(
+        train_mask_only=True,
         mask_type=mask_type,
         loss_type=loss_type,
         n_fft=8,
@@ -33,7 +34,7 @@ def test_forward_with_beamformer_net(
         use_beamformer=True,
         ref_channel=0,
         use_noise_mask=use_noise_mask,
-        beamformer_type="mvdr",
+        beamformer_type="mvdr_souden",
     )
     enh_model = ESPnetEnhancementModel(model)
     if training:
@@ -59,7 +60,15 @@ def test_forward_with_tasnet(training, loss_type, num_spk):
     ilens = torch.LongTensor([160, 120])
     speech_refs = [torch.randn(2, 160).float() for spk in range(num_spk)]
     model = TasNet(
-        N=5, L=20, B=5, H=10, P=3, X=8, R=4, num_spk=num_spk, loss_type=loss_type,
+        N=5,
+        L=20,
+        B=5,
+        H=10,
+        P=3,
+        X=8,
+        R=4,
+        num_spk=num_spk,
+        loss_type=loss_type,
     )
     enh_model = ESPnetEnhancementModel(model)
     if training:

@@ -27,6 +27,8 @@ ALL_LOSS_TYPES = (
     "spectrum",
     # si_snr(enhanced_waveform, target_waveform)
     "si_snr",
+    # no looss
+    None,
 )
 
 
@@ -95,7 +97,7 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                 mask = (abs(r) / (abs(mix_spec) + eps)) * cos_theta
                 mask = (
                     mask.clamp(min=0, max=1)
-                    if mask_label == "NPSM"
+                    if mask_type == "NPSM"
                     else mask.clamp(min=-1, max=1)
                 )
             elif mask_type == "PSM^2":
@@ -197,7 +199,10 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                 )
                 si_snr = -si_snr_loss.detach()
 
-            stats = dict(si_snr=si_snr, loss=loss.detach(),)
+            stats = dict(
+                si_snr=si_snr,
+                loss=loss.detach(),
+            )
         else:
             stats = dict(si_snr=-loss.detach(), loss=loss.detach())
 
@@ -212,6 +217,7 @@ class ESPnetEnhancementModel(AbsESPnetModel):
         speech_ref,
         dereverb_speech_ref=None,
         noise_ref=None,
+        cal_loss=True,
     ):
         """Compute loss according to self.loss_type.
 
@@ -227,6 +233,7 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                         or (Batch, num_speaker, samples, channels)
             noise_ref: (Batch, num_speaker, samples)
                         or (Batch, num_speaker, samples, channels)
+            cal_loss: whether to calculate enh loss, defualt is True
 
         Returns:
             loss: (torch.Tensor) speech enhancement loss
@@ -236,14 +243,6 @@ class ESPnetEnhancementModel(AbsESPnetModel):
             perm: () best permutation
         """
         if self.loss_type != "si_snr":
-            # prepare reference speech and reference spectrum
-            speech_ref = torch.unbind(speech_ref, dim=1)
-            spectrum_ref = [self.enh_model.stft(sr)[0] for sr in speech_ref]
-
-            # List[ComplexTensor(Batch, T, F)] or List[ComplexTensor(Batch, T, C, F)]
-            spectrum_ref = [
-                ComplexTensor(sr[..., 0], sr[..., 1]) for sr in spectrum_ref
-            ]
             spectrum_mix = self.enh_model.stft(speech_mix)[0]
             spectrum_mix = ComplexTensor(spectrum_mix[..., 0], spectrum_mix[..., 1])
 
@@ -252,6 +251,18 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                 speech_mix, speech_lengths
             )
 
+            if not cal_loss:
+                loss, perm = None, None
+                return loss, spectrum_pre, mask_pre, tf_length, perm
+
+            # prepare reference speech and reference spectrum
+            speech_ref = torch.unbind(speech_ref, dim=1)
+            spectrum_ref = [self.enh_model.stft(sr)[0] for sr in speech_ref]
+
+            # List[ComplexTensor(Batch, T, F)] or List[ComplexTensor(Batch, T, C, F)]
+            spectrum_ref = [
+                ComplexTensor(sr[..., 0], sr[..., 1]) for sr in spectrum_ref
+            ]
             # compute TF masking loss
             if self.loss_type == "magnitude":
                 # compute loss on magnitude spectrum
@@ -358,6 +369,10 @@ class ESPnetEnhancementModel(AbsESPnetModel):
             speech_pre, speech_lengths, *__ = self.enh_model.forward_rawwav(
                 speech_mix, speech_lengths
             )
+            if not cal_loss:
+                loss, perm = None, None
+                return loss, speech_pre, None, speech_lengths, perm
+
             # speech_pre: list[(batch, sample)]
             assert speech_pre[0].dim() == 2, speech_pre[0].dim()
             speech_ref = torch.unbind(speech_ref, dim=1)
@@ -474,7 +489,7 @@ class ESPnetEnhancementModel(AbsESPnetModel):
         """The basic permutation loss function.
 
         Args:
-            ref (List[torch.Tensor]): [(batch, ...), ...]
+            ref (List[torch.Tensor]): [(batch, ...), ...] x n_spk
             inf (List[torch.Tensor]): [(batch, ...), ...]
             criterion (function): Loss function
             perm (torch.Tensor): specified permutation (batch, num_spk)
@@ -532,7 +547,8 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
     """Speech enhancement or separation Frontend model"""
 
     def __init__(
-        self, enh_model: Optional[AbsEnhancement],
+        self,
+        enh_model: Optional[AbsEnhancement],
     ):
         assert check_argument_types()
         super().__init__()
@@ -738,7 +754,10 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
 
             loss = tf_loss
 
-            stats = dict(si_snr=si_snr, loss=loss.detach(),)
+            stats = dict(
+                si_snr=si_snr,
+                loss=loss.detach(),
+            )
         else:
             if speech_ref.dim() == 4:
                 # For si_snr loss of multi-channel input,
@@ -803,7 +822,7 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
             return loss, stats, weight
 
     def uttids_split(self, uttids, speech_mix, speech_ref):
-        """ Split all the mixtures from WSJ0_2mix with uttids
+        """Split all the mixtures from WSJ0_2mix with uttids
 
         Args:
             speech_mix: (Batch, samples) or (Batch, samples, channels)

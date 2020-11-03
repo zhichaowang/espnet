@@ -16,6 +16,7 @@ test_sets="tt_${min_or_max}_${sample_rate}"
 ./enh_asr.sh \
     --lang "en" \
     --nbpe 5000 \
+    --max_wav_duration 15 \
     --nlsyms_txt data/nlsyms.txt \
     --token_type char \
     --lm_config conf/tuning/train_lm.yaml \
@@ -23,6 +24,7 @@ test_sets="tt_${min_or_max}_${sample_rate}"
     --train_set "${train_set}" \
     --valid_set "${valid_set}" \
     --test_sets "${test_sets}" \
+    --use_signal_ref true \
     --fs "${sample_rate}" \
     --ngpu 4 \
     --local_data_opts "--sample_rate ${sample_rate} --min_or_max ${min_or_max}" \

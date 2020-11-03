@@ -29,6 +29,7 @@ from espnet2.asr.specaug.specaug import SpecAug
 from espnet2.enh.abs_enh import AbsEnhancement
 from espnet2.enh.espnet_model import ESPnetEnhancementModel
 from espnet2.enh.nets.beamformer_net import BeamformerNet
+from espnet2.enh.nets.dprnn_raw import FaSNet_base as DPRNN
 from espnet2.enh.nets.tasnet import TasNet
 from espnet2.enh.nets.tf_mask_net import TFMaskingNet
 from espnet2.layers.abs_normalize import AbsNormalize
@@ -48,7 +49,8 @@ from espnet2.utils.types import str_or_none
 
 enh_choices = ClassChoices(
     name="enh",
-    classes=dict(tf_masking=TFMaskingNet, tasnet=TasNet, wpe_beamformer=BeamformerNet),
+    classes=dict(tf_masking=TFMaskingNet, tasnet=TasNet, wpe_beamformer=BeamformerNet,
+                 dprnn=DPRNN,),
     type_check=AbsEnhancement,
     default="tf_masking",
 )
@@ -169,9 +171,9 @@ class ASRTask(AbsTask):
         )
 
         group.add_argument(
-            "--enh_model_conf",
+            "--joint_model_conf",
             action=NestedDictAction,
-            default=get_default_kwargs(ESPnetEnhancementModel),
+            default=get_default_kwargs(ESPnetEnhASRModel),
             help="The keyword arguments for model class.",
         )
 
@@ -259,7 +261,7 @@ class ASRTask(AbsTask):
         cls, train: bool = True, inference: bool = False
     ) -> Tuple[str, ...]:
         if not inference:
-            retval = ("speech_mix", "speech_ref1", "text_ref1")
+            retval = ("speech_mix", "text_ref1", "text_ref2")
         else:
             # Recognition mode
             retval = ("speech_mix",)
@@ -300,6 +302,7 @@ class ASRTask(AbsTask):
 
         # 0. Build pre enhancement model
         enh_model = enh_choices.get_class(args.enh)(**args.enh_conf)
+        enh_model = ESPnetEnhancementModel(enh_model)
 
         # 1. frontend
         if args.input_size is None:
@@ -349,10 +352,8 @@ class ASRTask(AbsTask):
         # 7. RNN-T Decoder (Not implemented)
         rnnt_decoder = None
 
-        # 8. Build model
-        model = ESPnetEnhASRModel(
+        asr_model = ESPnetASRModel(
             vocab_size=vocab_size,
-            enh=enh_model,
             frontend=frontend,
             specaug=specaug,
             normalize=normalize,
@@ -362,6 +363,12 @@ class ASRTask(AbsTask):
             rnnt_decoder=rnnt_decoder,
             token_list=token_list,
             **args.asr_model_conf,
+        )
+        # 8. Build model
+        model = ESPnetEnhASRModel(
+            enh_model=enh_model,
+            asr_model=asr_model,
+            **args.joint_model_conf,
         )
 
         # FIXME(kamo): Should be done in model?
