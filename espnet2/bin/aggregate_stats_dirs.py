@@ -81,7 +81,7 @@ def get_parser() -> argparse.ArgumentParser:
         "--log_level",
         type=lambda x: x.upper(),
         default="INFO",
-        choices=("INFO", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"),
+        choices=("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"),
         help="The verbose level of logging",
     )
     parser.add_argument("--skip_sum_stats", default=False, action="store_true", help="Skip computing the sum of statistics.")
