@@ -6,6 +6,7 @@ from espnet2.enh.espnet_model import ESPnetEnhancementModel
 from espnet2.enh.nets.beamformer_net import BeamformerNet
 from espnet2.enh.nets.tasnet import TasNet
 from espnet2.enh.nets.tf_mask_net import TFMaskingNet
+from test.espnet2.enh.layers.test_enh_layers import random_speech
 
 
 @pytest.mark.parametrize("training", [True, False])
@@ -16,12 +17,16 @@ from espnet2.enh.nets.tf_mask_net import TFMaskingNet
 def test_forward_with_beamformer_net(
     training, mask_type, loss_type, num_spk, use_noise_mask
 ):
+    # Skip some testing cases
+    if not loss_type.startswith("mask") and mask_type != "IBM":
+        # `mask_type` has no effect when `loss_type` is not "mask..."
+        return
     ch = 2
-    inputs = torch.randn(2, 16, ch).float()
+    inputs = random_speech[..., :ch].float()
     ilens = torch.LongTensor([16, 12])
     speech_refs = [torch.randn(2, 16, ch).float() for spk in range(num_spk)]
-    noise_ref1 = torch.randn(2, 16, ch).float()
-    dereverb_ref1 = torch.randn(2, 16, ch).float()
+    noise_ref1 = torch.randn(2, 16, ch, dtype=torch.float)
+    dereverb_ref1 = torch.randn(2, 16, ch, dtype=torch.float)
     model = BeamformerNet(
         train_mask_only=True,
         mask_type=mask_type,

@@ -158,7 +158,7 @@ class EnhancementTask(AbsTask):
     def optional_data_names(
         cls, train: bool = True, inference: bool = False
     ) -> Tuple[str, ...]:
-        retval += ["mix_ref1"]
+        retval = ["mix_ref1"]
         retval += ["mix_ref2"]
         retval += ["mix_of_mixtures"]
         retval += ["speech_ref{}".format(n) for n in range(2, MAX_REFERENCE_NUM + 1)]
