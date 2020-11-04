@@ -21,7 +21,7 @@ def test_forward_with_beamformer_net(
     ilens = torch.LongTensor([16, 12])
     speech_refs = [torch.randn(2, 16, ch).float() for spk in range(num_spk)]
     noise_ref1 = torch.randn(2, 16, ch).float()
-    dereverb_ref = torch.randn(2, 16, ch).float()
+    dereverb_ref1 = torch.randn(2, 16, ch).float()
     model = BeamformerNet(
         train_mask_only=True,
         mask_type=mask_type,
@@ -30,8 +30,16 @@ def test_forward_with_beamformer_net(
         hop_length=2,
         num_spk=num_spk,
         use_wpe=True,
+        wlayers=2,
+        wunits=2,
+        wprojs=2,
         use_dnn_mask_for_wpe=True,
+        multi_source_wpe=True,
         use_beamformer=True,
+        blayers=2,
+        bunits=2,
+        bprojs=2,
+        badim=2,
         ref_channel=0,
         use_noise_mask=use_noise_mask,
         beamformer_type="mvdr_souden",
@@ -47,7 +55,7 @@ def test_forward_with_beamformer_net(
         "speech_mix_lengths": ilens,
         **{"speech_ref{}".format(i + 1): speech_refs[i] for i in range(num_spk)},
         "noise_ref1": noise_ref1,
-        "dereverb_ref": dereverb_ref,
+        "dereverb_ref1": dereverb_ref1,
     }
     loss, stats, weight = enh_model(**kwargs)
 

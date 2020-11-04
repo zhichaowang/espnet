@@ -158,12 +158,12 @@ class EnhancementTask(AbsTask):
     def optional_data_names(
         cls, train: bool = True, inference: bool = False
     ) -> Tuple[str, ...]:
-        retval = ["dereverb_ref"]
         retval += ["mix_ref1"]
         retval += ["mix_ref2"]
         retval += ["mix_of_mixtures"]
         retval += ["speech_ref{}".format(n) for n in range(2, MAX_REFERENCE_NUM + 1)]
         retval += ["noise_ref{}".format(n) for n in range(1, MAX_REFERENCE_NUM + 1)]
+        retval += ["dereverb_ref{}".format(n) for n in range(1, MAX_REFERENCE_NUM + 1)]
         retval = tuple(retval)
         assert check_return_type(retval)
         return retval
