@@ -202,7 +202,7 @@ class Speech2Text:
             speech_pre, *__ = self.joint_model.enh_model.forward_rawwav(
                 batch["speech"], batch["speech_lengths"]
             )
-            speech_pre_lengths = batch['speech_lengths']
+            speech_pre_lengths = batch["speech_lengths"]
             ref = np.array(
                 torch.stack([speech_ref1, speech_ref2], dim=0).squeeze()
             )  # nspk,T
@@ -210,8 +210,8 @@ class Speech2Text:
             sdr, sir, sar, perm = bss_eval_sources(ref, inf, compute_permutation=True)
         else:
             _, _, speech_pre, speech_pre_lengths = self.joint_model.forward_enh(
-                batch['speech'],
-                batch['speech_lengths'],
+                batch["speech"],
+                batch["speech_lengths"],
             )
             sdr, sir, sar, perm = None, None, None, np.arange(0, len(speech_pre))
 
@@ -490,7 +490,7 @@ def get_parser():
         "--normalize_output_wav",
         type=str2bool,
         default=False,
-        help="Weather to normalize the predicted wav to [-1~1]",
+        help="Whether to normalize the predicted wav to [-1~1]",
     )
 
     return parser
