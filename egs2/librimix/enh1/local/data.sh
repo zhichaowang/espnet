@@ -89,3 +89,4 @@ cat data/LibriMix/libri_mix/Libri2Mix/wav${sample_rate}/${min_or_max}/metadata/m
 cat data/LibriMix/libri_mix/Libri2Mix/wav${sample_rate}/${min_or_max}/metadata/mixture_train-*_mix_both.csv | grep -v mixture_ID | sort -u | awk -F ',' '{print $1, $5}' > data/train/noise1.scp
 cat data/LibriMix/libri_mix/Libri2Mix/wav${sample_rate}/${min_or_max}/metadata/mixture_train-*_mix_both.csv | grep -v mixture_ID | sort -u | awk -F ',' '{print $1, $1}' > data/train/utt2spk
 cat data/LibriMix/libri_mix/Libri2Mix/wav${sample_rate}/${min_or_max}/metadata/mixture_train-*_mix_both.csv | grep -v mixture_ID | sort -u | awk -F ',' '{print $1, $1}' > data/train/spk2utt
+
