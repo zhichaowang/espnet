@@ -35,10 +35,12 @@ from espnet2.utils.types import str2bool
 from espnet2.utils.types import str2triple_str
 from espnet2.utils.types import str_or_none
 
+
 def humanfriendly_or_none(value: str):
     if value in ("none", "None", "NONE"):
         return None
     return humanfriendly.parse_size(value)
+
 
 class Speech2Text:
     """Speech2Text class
@@ -164,10 +166,13 @@ class Speech2Text:
 
     @torch.no_grad()
     def __call__(
-        self, speech_mix: Union[torch.Tensor, np.ndarray],
-        speech_ref1: Union[torch.Tensor, np.ndarray],
-        speech_ref2: Union[torch.Tensor, np.ndarray],
-    ) -> List[List[Tuple[float, Optional[str], List[str], List[int], Hypothesis]]]:
+        self,
+        speech_mix: Union[torch.Tensor, np.ndarray],
+        speech_ref1: Union[torch.Tensor, np.ndarray] = None,
+        speech_ref2: Union[torch.Tensor, np.ndarray] = None,
+    ) -> List[
+        List[Tuple[Optional[float], Optional[str], List[str], List[int], Hypothesis]]
+    ]:
         """Inference
 
         Args:
@@ -191,22 +196,29 @@ class Speech2Text:
 
         # a. To device
         batch = to_device(batch, device=self.device)
-
-        print('speech',batch['speech'].shape,batch['speech_lengths'].shape)
-
-        speech_pre, *__ = self.joint_model.enh_model.forward_rawwav(batch['speech'],batch['speech_lengths'])
-        print('speech_pre',len(speech_pre),speech_pre[0].shape)
-        ref = np.array(torch.stack([speech_ref1,speech_ref2],dim=0).squeeze()) # nspk,T
-        inf = np.array(torch.stack(speech_pre,dim=1).squeeze())
-        print('ref,inf:',ref.shape,inf.shape)
-        sdr, sir, sar, perm = bss_eval_sources(ref, inf, compute_permutation=True)
+        if self.joint_model.cal_enh_loss:
+            speech_pre, *__ = self.joint_model.enh_model.forward_rawwav(
+                batch["speech"], batch["speech_lengths"]
+            )
+            speech_pre_lengths = batch["speech_lengths"]
+            ref = np.array(
+                torch.stack([speech_ref1, speech_ref2], dim=0).squeeze()
+            )  # nspk,T
+            inf = np.array(torch.stack(speech_pre, dim=1).squeeze())
+            sdr, sir, sar, perm = bss_eval_sources(ref, inf, compute_permutation=True)
+        else:
+            _, _, speech_pre, speech_pre_lengths = self.joint_model.forward_enh(
+                batch["speech"], batch["speech_lengths"],
+            )
+            sdr, sir, sar, perm = None, None, None, np.arange(0, len(speech_pre))
 
         # b. Forward Encoder
-        results_list=[]
+        results_list = []
         # For each predicted spk
-        for idx,p in enumerate(perm):
+        for idx, p in enumerate(perm):
             speech_spk = speech_pre[int(p)]
-            enc, _ = self.joint_model.encode(speech_spk,batch['speech_lengths'])
+            # enc, _ = self.joint_model.encode(speech_spk, batch['speech_lengths'])
+            enc, _ = self.joint_model.encode(speech_spk, speech_pre_lengths)
             assert len(enc) == 1, len(enc)
 
             # c. Passed the encoder result and the beam search
@@ -232,7 +244,12 @@ class Speech2Text:
                     text = self.tokenizer.tokens2text(token)
                 else:
                     text = None
-                results.append((float(sdr[idx]), text, token, token_int, hyp))
+                if sdr is not None:
+                    sdr_rslt = float(sdr[idx])
+                else:
+                    sdr_rslt = None
+
+                results.append((sdr_rslt, text, token, token_int, hyp))
 
             results_list.append(results)
 
@@ -317,7 +334,7 @@ def inference(
         key_file=key_file,
         num_workers=num_workers,
         preprocess_fn=ASRTask.build_preprocess_fn(speech2text.joint_train_args, False),
-        collate_fn=ASRTask.build_collate_fn(speech2text.joint_train_args),
+        collate_fn=ASRTask.build_collate_fn(speech2text.joint_train_args, False),
         allow_variable_data_keys=allow_variable_data_keys,
         inference=True,
     )
@@ -333,15 +350,15 @@ def inference(
             batch = {k: v[0] for k, v in batch.items() if not k.endswith("_lengths")}
 
             # N-best list of (text, token, token_int, hyp_object)
+            logging.info(f"keys: {keys}")
             results_list = speech2text(**batch)
-            print('results_list:',len(results_list),len(results_list[0]))
-            print('results_list:',results_list)
-            print('keys:',keys)
 
             for spk_idx, results in enumerate(results_list):
                 # Only supporting batch_size==1
                 key = keys[0]
-                for n, (sdr, text, token, token_int, hyp) in zip(range(1, nbest + 1), results):
+                for n, (sdr, text, token, token_int, hyp) in zip(
+                    range(1, nbest + 1), results
+                ):
                     # Create a directory: outdir/{n}best_recog
                     ibest_writer = writer[f"{n}best_recog_spk{spk_idx+1}"]
 
@@ -353,7 +370,8 @@ def inference(
                     if text is not None:
                         ibest_writer["text"][key] = text
 
-                    writer[f"SDR_spk{spk_idx + 1}"][key] = str(sdr)
+                    if sdr is not None:
+                        writer[f"SDR_spk{spk_idx + 1}"][key] = str(sdr)
 
 
 def get_parser():
@@ -434,7 +452,7 @@ def get_parser():
         help="Input length ratio to obtain min output length",
     )
     group.add_argument(
-        "--ctc_weight", type=float, default=0.5, help="CTC weight in joint decoding",
+        "--ctc_weight", type=float, default=0.2, help="CTC weight in joint decoding",
     )
     group.add_argument("--lm_weight", type=float, default=1.0, help="RNNLM weight")
 
@@ -460,7 +478,7 @@ def get_parser():
         "--normalize_output_wav",
         type=str2bool,
         default=False,
-        help="Weather to normalize the predicted wav to [-1~1]",
+        help="Whether to normalize the predicted wav to [-1~1]",
     )
 
     return parser

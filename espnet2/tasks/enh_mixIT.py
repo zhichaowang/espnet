@@ -31,8 +31,12 @@ from egs2.wsj0_mixIT.enh1.codes.collate_fn import CommonCollateFn
 
 enh_choices = ClassChoices(
     name="enh",
-    classes=dict(tf_masking=TFMaskingNet, tasnet=TasNet, wpe_beamformer=BeamformerNet,
-                 dprnn=DPRNN),
+    classes=dict(
+        tf_masking=TFMaskingNet,
+        tasnet=TasNet,
+        wpe_beamformer=BeamformerNet,
+        dprnn=DPRNN,
+    ),
     type_check=AbsEnhancement,
     default="tf_masking",
 )
@@ -140,7 +144,9 @@ class EnhancementTask(AbsTask):
         return retval
 
     @classmethod
-    def required_data_names(cls, inference: bool = False) -> Tuple[str, ...]:
+    def required_data_names(
+        cls, train: bool = True, inference: bool = False
+    ) -> Tuple[str, ...]:
         if not inference:
             retval = ("speech_mix", "speech_ref1")
         else:
@@ -149,13 +155,15 @@ class EnhancementTask(AbsTask):
         return retval
 
     @classmethod
-    def optional_data_names(cls, inference: bool = False) -> Tuple[str, ...]:
-        retval = ["dereverb_ref"]
-        retval += ["mix_ref1"]
+    def optional_data_names(
+        cls, train: bool = True, inference: bool = False
+    ) -> Tuple[str, ...]:
+        retval = ["mix_ref1"]
         retval += ["mix_ref2"]
         retval += ["mix_of_mixtures"]
         retval += ["speech_ref{}".format(n) for n in range(2, MAX_REFERENCE_NUM + 1)]
         retval += ["noise_ref{}".format(n) for n in range(1, MAX_REFERENCE_NUM + 1)]
+        retval += ["dereverb_ref{}".format(n) for n in range(1, MAX_REFERENCE_NUM + 1)]
         retval = tuple(retval)
         assert check_return_type(retval)
         return retval

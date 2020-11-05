@@ -69,24 +69,28 @@ def common_collate_fn(
     assert check_argument_types()
     uttids = [u for u, _ in data]
     data = [d for _, d in data]
-    # print('uttis',len(uttids),uttids)
-    # print('data',len(data))
-    '''
+
+    """
+    Two examples in WSJ0-2mix:
+
     uttids['20l_20c_20la010v_1.7879_20cc010p_-1.7879']
-    data[{'speech_mix': array([0.00036621, 0.00036621, 0.00024414, ..., 0.01504517, 0.01098633,
-                               0.01089478], dtype=float32),
+    data[{'speech_mix': array([0.00036621, 0.00036621, 0.00024414, ..., 0.01504517,
+                               0.01098633, 0.01089478], dtype=float32),
           'speech_ref1': array([1.5258789e-04, 9.1552734e-05, 1.8310547e-04, ...,
-                                -1.5258789e-04, -2.1362305e-04, -1.2207031e-04], dtype=float32),
-          'speech_ref2': array([2.1362305e-04, 2.7465820e-04, 9.1552734e-05, ..., 1.5197754e-02,
-                                1.1169434e-02, 1.1016846e-02], dtype=float32)}]
+                                -1.5258789e-04, -2.1362305e-04, -1.2207031e-04],
+                                dtype=float32),
+          'speech_ref2': array([2.1362305e-04, 2.7465820e-04, 9.1552734e-05, ...,
+                                1.5197754e-02, 1.1169434e-02, 1.1016846e-02],
+                                dtype=float32)}]
     uttids['20d_40o_20dc010j_0.47296_40oo030c_-0.47296']
-    data[{'speech_mix': array([0.00106812, 0.00183105, 0.00128174, ..., 0.00604248, 0.00238037,
-                               0.00808716], dtype=float32),
+    data[{'speech_mix': array([0.00106812, 0.00183105, 0.00128174, ..., 0.00604248,
+                               0.00238037, 0.00808716], dtype=float32),
           'speech_ref1': array([0.00106812, 0.00140381, 0.00125122, ..., 0.00280762,
                                 -0.00131226, 0.00497437], dtype=float32),
-          'speech_ref2': array([0.0000000e+00, 4.2724609e-04, 3.0517578e-05, ..., 3.2348633e-03,
-                                3.6926270e-03, 3.1127930e-03], dtype=float32)}]
-    '''
+          'speech_ref2': array([0.0000000e+00, 4.2724609e-04, 3.0517578e-05, ...,
+                                3.2348633e-03, 3.6926270e-03, 3.1127930e-03],
+                                dtype=float32)}]
+    """
 
     assert all(set(data[0]) == set(d) for d in data), "dict-keys mismatching"
     assert all(
@@ -118,7 +122,6 @@ def common_collate_fn(
         if key not in not_sequence:
             lens = torch.tensor([d[key].shape[0] for d in data], dtype=torch.long)
             output[key + "_lengths"] = lens
-
 
     output = (uttids, output)
     assert check_return_type(output)

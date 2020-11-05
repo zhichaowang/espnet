@@ -14,11 +14,12 @@ valid_set="dev"
 test_sets="test "
 
 ./enh.sh \
+    ----use_noise_ref true \
     --train_set "${train_set}" \
     --valid_set "${valid_set}" \
     --test_sets "${test_sets}" \
     --fs "${sample_rate}" \
     --lang en \
     --ngpu 4 \
-    --enh_config ./conf/tuning/train_enh_PSM_debug.yaml \
+    --enh_config ./conf/tuning/train_enh_PSM.yaml \
     "$@"

@@ -20,7 +20,7 @@ from espnet2.asr.encoder.abs_encoder import AbsEncoder
 from espnet2.asr.encoder.rnn_encoder import RNNEncoder
 from espnet2.asr.encoder.transformer_encoder import TransformerEncoder
 from espnet2.asr.encoder.vgg_rnn_encoder import VGGRNNEncoder
-from espnet2.asr.espnet_joint_model import ESPnetEnhASRModel
+from espnet2.asr.espnet_enh_asr_model import ESPnetEnhASRModel
 from espnet2.asr.espnet_model import ESPnetASRModel
 from espnet2.asr.frontend.abs_frontend import AbsFrontend
 from espnet2.asr.frontend.default import DefaultFrontend
@@ -29,6 +29,7 @@ from espnet2.asr.specaug.specaug import SpecAug
 from espnet2.enh.abs_enh import AbsEnhancement
 from espnet2.enh.espnet_model import ESPnetEnhancementModel
 from espnet2.enh.nets.beamformer_net import BeamformerNet
+from espnet2.enh.nets.dprnn_raw import FaSNet_base as DPRNN
 from espnet2.enh.nets.tasnet import TasNet
 from espnet2.enh.nets.tf_mask_net import TFMaskingNet
 from espnet2.layers.abs_normalize import AbsNormalize
@@ -48,7 +49,12 @@ from espnet2.utils.types import str_or_none
 
 enh_choices = ClassChoices(
     name="enh",
-    classes=dict(tf_masking=TFMaskingNet, tasnet=TasNet, wpe_beamformer=BeamformerNet),
+    classes=dict(
+        tf_masking=TFMaskingNet,
+        tasnet=TasNet,
+        wpe_beamformer=BeamformerNet,
+        dprnn=DPRNN,
+    ),
     type_check=AbsEnhancement,
     default="tf_masking",
 )
@@ -67,7 +73,10 @@ specaug_choices = ClassChoices(
 )
 normalize_choices = ClassChoices(
     "normalize",
-    classes=dict(global_mvn=GlobalMVN, utterance_mvn=UtteranceMVN,),
+    classes=dict(
+        global_mvn=GlobalMVN,
+        utterance_mvn=UtteranceMVN,
+    ),
     type_check=AbsNormalize,
     default="utterance_mvn",
     optional=True,
@@ -75,7 +84,9 @@ normalize_choices = ClassChoices(
 encoder_choices = ClassChoices(
     "encoder",
     classes=dict(
-        transformer=TransformerEncoder, vgg_rnn=VGGRNNEncoder, rnn=RNNEncoder,
+        transformer=TransformerEncoder,
+        vgg_rnn=VGGRNNEncoder,
+        rnn=RNNEncoder,
     ),
     type_check=AbsEncoder,
     default="rnn",
@@ -164,9 +175,9 @@ class ASRTask(AbsTask):
         )
 
         group.add_argument(
-            "--enh_model_conf",
+            "--joint_model_conf",
             action=NestedDictAction,
-            default=get_default_kwargs(ESPnetEnhancementModel),
+            default=get_default_kwargs(ESPnetEnhASRModel),
             help="The keyword arguments for model class.",
         )
 
@@ -217,7 +228,7 @@ class ASRTask(AbsTask):
 
     @classmethod
     def build_collate_fn(
-        cls, args: argparse.Namespace
+        cls, args: argparse.Namespace, train: bool
     ) -> Callable[
         [Collection[Tuple[str, Dict[str, np.ndarray]]]],
         Tuple[List[str], Dict[str, torch.Tensor]],
@@ -250,21 +261,27 @@ class ASRTask(AbsTask):
         return retval
 
     @classmethod
-    def required_data_names(cls, inference: bool = False) -> Tuple[str, ...]:
+    def required_data_names(
+        cls, train: bool = True, inference: bool = False
+    ) -> Tuple[str, ...]:
         if not inference:
-            retval = ("speech_mix", "speech_ref1", "text_ref1")
+            retval = ("speech_mix", "text_ref1", "text_ref2")
         else:
             # Recognition mode
             retval = ("speech_mix",)
         return retval
 
     @classmethod
-    def optional_data_names(cls, inference: bool = False) -> Tuple[str, ...]:
+    def optional_data_names(
+        cls, train: bool = True, inference: bool = False
+    ) -> Tuple[str, ...]:
         if not inference:
-            retval = ["dereverb_ref"]
-            retval += ["speech_ref{}".format(n) for n in range(2, MAX_REFERENCE_NUM + 1)]
+            retval = ["speech_ref{}".format(n) for n in range(1, MAX_REFERENCE_NUM + 1)]
             retval += ["text_ref{}".format(n) for n in range(2, MAX_REFERENCE_NUM + 1)]
             retval += ["noise_ref{}".format(n) for n in range(1, MAX_REFERENCE_NUM + 1)]
+            retval += [
+                "dereverb_ref{}".format(n) for n in range(1, MAX_REFERENCE_NUM + 1)
+            ]
         else:
             retval = ["speech_ref{}".format(n) for n in range(1, MAX_REFERENCE_NUM + 1)]
         retval = tuple(retval)
@@ -289,6 +306,7 @@ class ASRTask(AbsTask):
 
         # 0. Build pre enhancement model
         enh_model = enh_choices.get_class(args.enh)(**args.enh_conf)
+        enh_model = ESPnetEnhancementModel(enh_model)
 
         # 1. frontend
         if args.input_size is None:
@@ -338,10 +356,8 @@ class ASRTask(AbsTask):
         # 7. RNN-T Decoder (Not implemented)
         rnnt_decoder = None
 
-        # 8. Build model
-        model = ESPnetEnhASRModel(
+        asr_model = ESPnetASRModel(
             vocab_size=vocab_size,
-            enh=enh_model,
             frontend=frontend,
             specaug=specaug,
             normalize=normalize,
@@ -351,6 +367,12 @@ class ASRTask(AbsTask):
             rnnt_decoder=rnnt_decoder,
             token_list=token_list,
             **args.asr_model_conf,
+        )
+        # 8. Build model
+        model = ESPnetEnhASRModel(
+            enh_model=enh_model,
+            asr_model=asr_model,
+            **args.joint_model_conf,
         )
 
         # FIXME(kamo): Should be done in model?

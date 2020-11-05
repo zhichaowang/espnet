@@ -27,14 +27,14 @@ stage=1          # Processes starts from the specified stage.
 stop_stage=10000 # Processes is stopped at the specified stage.
 skip_data_prep=false # Skip data preparation stages
 skip_train=false     # Skip training stages
-skip_eval=false      # Skip decoding and evaluation stages
+skip_eval=false      # Skip inference and evaluation stages
 skip_upload=true     # Skip packing and uploading stages
 ngpu=1           # The number of gpus ("0" uses cpu, otherwise use gpu).
 num_nodes=1      # The number of nodes
 nj=32            # The number of parallel jobs.
 dumpdir=dump     # Directory to dump features.
-inference_nj=32     # The number of parallel jobs in decoding.
-gpu_inference=false # Whether to perform gpu decoding.
+inference_nj=32     # The number of parallel jobs in inference.
+gpu_inference=false # Whether to perform gpu inference.
 expdir=exp       # Directory to save experiments.
 python=python3       # Specify python to execute espnet commands
 
@@ -46,10 +46,11 @@ speed_perturb_factors=  # perturbation factors, e.g. "0.9 1.0 1.1" (separated by
 
 # Feature extraction related
 feats_type=raw    # Feature type (raw or fbank_pitch).
-audio_format=flac # Audio format (only in feats_type=raw).
+audio_format=flac # Audio format: wav, flac, wav.ark, flac.ark  (only in feats_type=raw).
 fs=16k            # Sampling rate.
 min_wav_duration=0.1   # Minimum duration in second
 max_wav_duration=20    # Maximum duration in second
+input_type=sound  # Input data type: sound / ark
 
 # Enhancement model related
 enh_exp=    # Specify the direcotry path for enhancement experiment. If this option is specified, enh_tag is ignored.
@@ -57,22 +58,31 @@ enh_tag=    # Suffix to the result dir for enhancement model training.
 enh_config= # Config for ehancement model training.
 enh_args=   # Arguments for enhancement model training, e.g., "--max_epoch 10".
             # Note that it will overwrite args in enhancement config.
-spk_num=2
+spk_num=2   # Number of speakers
 noise_type_num=1
-feats_normalize=global_mvn  # Normalizaton layer type
+dereverb_ref_num=1
 
 # Training data related
 use_dereverb_ref=false
 use_noise_ref=false
 
+# Pretrained model related
+# The number of --pretrain_path and --pretrain_key must be same.
+pretrain_path=
+# if pretrain_key is None -> model
+# elif pretrain_key is str e.g. "encoder" -> model.encoder
+pretrain_key=
+
 # Enhancement related
 inference_args="--normalize_output_wav true"
-inference_model=valid.si_snr.best.pth
+inference_model=valid.si_snr.ave.pth
 
 # Evaluation related
 scoring_protocol="STOI SDR SAR SIR"
 ref_channel=0
 score_with_asr=false
+asr_exp=""       # asr model for scoring WER
+lm_exp=""       # lm model for scoring WER
 
 # [Task dependent] Set the datadir name created by local/data.sh
 train_set=       # Name of training set.
@@ -90,7 +100,7 @@ Options:
     --stop_stage    # Processes is stopped at the specified stage (default="${stop_stage}").
     --skip_data_prep # Skip data preparation stages (default="${skip_data_prep}").
     --skip_train     # Skip training stages (default="${skip_train}").
-    --skip_eval      # Skip decoding and evaluation stages (default="${skip_eval}").
+    --skip_eval      # Skip inference and evaluation stages (default="${skip_eval}").
     --skip_upload    # Skip packing and uploading stages (default="${skip_upload}").
     --ngpu          # The number of gpus ("0" uses cpu, otherwise use gpu, default="${ngpu}").
     --num_nodes     # The number of nodes
@@ -109,7 +119,7 @@ Options:
 
     # Feature extraction related
     --feats_type   # Feature type (only support raw currently).
-    --audio_format # Audio format (only in feats_type=raw, default="${audio_format}").
+    --audio_format # Audio format: wav, flac, wav.ark, flac.ark  (only in feats_type=raw, default="${audio_format}").
     --fs           # Sampling rate (default="${fs}").
     --min_wav_duration # Minimum duration in second (default="${min_wav_duration}").
     --max_wav_duration # Maximum duration in second (default="${max_wav_duration}").
@@ -121,8 +131,8 @@ Options:
     --enh_args   # Arguments for enhancement model training, e.g., "--max_epoch 10" (default="${enh_args}").
                  # Note that it will overwrite args in enhancement config.
     --spk_num    # Number of speakers in the input audio (default="${spk_num}")
-    --noise_type_num  # Number of noise types in the input audio (default="${noise_type_num}")
-    --feats_normalize # Normalizaton layer type (default="${feats_normalize}").
+    --noise_type_num   # Number of noise types in the input audio (default="${noise_type_num}")
+    --dereverb_ref_num # Number of references for dereverberation (default="${dereverb_ref_num}")
 
     # Training data related
     --use_dereverb_ref # Whether or not to use dereverberated signal as an additional reference
@@ -130,9 +140,13 @@ Options:
     --use_noise_ref    # Whether or not to use noise signal as an additional reference
                          for training a denoising model (default="${use_noise_ref}")
 
+    # Pretrained model related
+    --pretrain_path    # pretrained model path (default="${pretrain_path}")
+    --pretrain_key     # name of module to be initialized from the pretrained model (default="${pretrain_key}")
+
     # Enhancement related
-    --inference_args      # Arguments for enhancement in the inference stage (default="${inference_args}")
-    --inference_model # Enhancement model path for inference (default="${inference_model}").
+    --inference_args   # Arguments for enhancement in the inference stage (default="${inference_args}")
+    --inference_model  # Enhancement model path for inference (default="${inference_model}").
 
     # Evaluation related
     --scoring_protocol    # Metrics to be used for scoring (default="${scoring_protocol}")
@@ -150,6 +164,8 @@ EOF
 )
 
 log "$0 $*"
+# Save command line args for logging (they will be lost after utils/parse_options.sh)
+run_args=$(pyscripts/utils/print_args.py $0 "$@")
 . utils/parse_options.sh
 
 if [ $# -ne 0 ]; then
@@ -268,13 +284,13 @@ if ! "${skip_data_prep}"; then
             for i in $(seq ${spk_num}); do
                 _spk_list+="spk${i} "
             done
-            if $use_noise_ref; then
-                # reference for denoising ("noise1 noise2 ... niose${noise_type_num} ")
+            if $use_noise_ref && [ -n "${_suf}" ]; then
+                # references for denoising ("noise1 noise2 ... niose${noise_type_num} ")
                 _spk_list+=$(for n in $(seq $noise_type_num); do echo -n "noise$n "; done)
             fi
-            if $use_dereverb_ref; then
-                # reference for dereverberation
-                _spk_list+="dereverb "
+            if $use_dereverb_ref && [ -n "${_suf}" ]; then
+                # references for dereverberation
+                _spk_list+=$(for n in $(seq $dereverb_ref_num); do echo -n "dereverb$n "; done)
             fi
 
             for spk in ${_spk_list} "wav" ; do
@@ -303,12 +319,12 @@ if ! "${skip_data_prep}"; then
                 _spk_list+="spk${i} "
             done
             if $use_noise_ref; then
-                # reference for denoising ("noise1 noise2 ... niose${noise_type_num} ")
+                # references for denoising ("noise1 noise2 ... niose${noise_type_num} ")
                 _spk_list+=$(for n in $(seq $noise_type_num); do echo -n "noise$n "; done)
             fi
             if $use_dereverb_ref; then
-                # reference for dereverberation
-                _spk_list+="dereverb "
+                # references for dereverberation
+                _spk_list+=$(for n in $(seq $dereverb_ref_num); do echo -n "dereverb$n "; done)
             fi
 
             # Copy data dir
@@ -360,8 +376,12 @@ if ! "${skip_train}"; then
         fi
 
         _scp=wav.scp
-        # "sound" supports "wav", "flac", etc.
-        _type=sound
+        if [[ "${audio_format}" == *ark* ]]; then
+            _type=kaldi_ark
+        else
+            # "sound" supports "wav", "flac", etc.
+            _type=sound
+        fi
 
         # 1. Split the key file
         _logdir="${enh_stats_dir}/logdir"
@@ -386,7 +406,11 @@ if ! "${skip_train}"; then
         # shellcheck disable=SC2086
         utils/split_scp.pl "${key_file}" ${split_scps}
 
-        # 2. Submit jobs
+        # 2. Generate run.sh
+        log "Generate '${enh_stats_dir}/run.sh'. You can resume the process from stage 5 using this script"
+        mkdir -p "${enh_stats_dir}"; echo "${run_args} --stage 5 \"\$@\"; exit \$?" > "${enh_stats_dir}/run.sh"; chmod +x "${enh_stats_dir}/run.sh"
+
+        # 3. Submit jobs
         log "Enhancement collect-stats started... log: '${_logdir}/stats.*.log'"
 
         # prepare train and valid data parameters
@@ -398,13 +422,15 @@ if ! "${skip_train}"; then
         done
 
         if $use_dereverb_ref; then
-            # reference for dereverberation
-            _train_data_param+="--train_data_path_and_name_and_type ${_enh_train_dir}/dereverb.scp,dereverb_ref,sound "
-            _valid_data_param+="--valid_data_path_and_name_and_type ${_enh_valid_dir}/dereverb.scp,dereverb_ref,sound "
+            # references for dereverberation
+            _train_data_param+=$(for n in $(seq $dereverb_ref_num); do echo -n \
+                "--train_data_path_and_name_and_type ${_enh_train_dir}/dereverb${n}.scp,dereverb_ref${n},sound "; done)
+            _valid_data_param+=$(for n in $(seq $dereverb_ref_num); do echo -n \
+                "--valid_data_path_and_name_and_type ${_enh_valid_dir}/dereverb${n}.scp,dereverb_ref${n},sound "; done)
         fi
 
         if $use_noise_ref; then
-            # reference for denoising
+            # references for denoising
             _train_data_param+=$(for n in $(seq $noise_type_num); do echo -n \
                 "--train_data_path_and_name_and_type ${_enh_train_dir}/noise${n}.scp,noise_ref${n},sound "; done)
             _valid_data_param+=$(for n in $(seq $noise_type_num); do echo -n \
@@ -425,9 +451,9 @@ if ! "${skip_train}"; then
                 --train_shape_file "${_logdir}/train.JOB.scp" \
                 --valid_shape_file "${_logdir}/valid.JOB.scp" \
                 --output_dir "${_logdir}/stats.JOB" \
-                ${_opts} ${enh_args}
+                ${_opts} ${enh_args} || { cat "${_logdir}"/stats.1.log; exit 1; }
 
-        # 3. Aggregate shape files
+        # 4. Aggregate shape files
         _opts=
         for i in $(seq "${_nj}"); do
             _opts+="--input_dir ${_logdir}/stats.${i} "
@@ -471,16 +497,18 @@ if ! "${skip_train}"; then
         done
 
         if $use_dereverb_ref; then
-            # reference for dereverberation
-            _train_data_param+="--train_data_path_and_name_and_type ${_enh_train_dir}/dereverb.scp,dereverb_ref,sound "
-            _train_shape_param+="--train_shape_file ${enh_stats_dir}/train/dereverb_ref_shape "
-            _valid_data_param+="--valid_data_path_and_name_and_type ${_enh_valid_dir}/dereverb.scp,dereverb_ref,sound "
-            _valid_shape_param+="--valid_shape_file ${enh_stats_dir}/valid/dereverb_ref_shape "
-            _fold_length_param+="--fold_length ${_fold_length} "
+            # references for dereverberation
+            for n in $(seq "${dereverb_ref_num}"); do
+                _train_data_param+="--train_data_path_and_name_and_type ${_enh_train_dir}/dereverb${n}.scp,dereverb_ref${n},sound "
+                _train_shape_param+="--train_shape_file ${enh_stats_dir}/train/dereverb_ref${n}_shape "
+                _valid_data_param+="--valid_data_path_and_name_and_type ${_enh_valid_dir}/dereverb${n}.scp,dereverb_ref${n},sound "
+                _valid_shape_param+="--valid_shape_file ${enh_stats_dir}/valid/dereverb_ref${n}_shape "
+                _fold_length_param+="--fold_length ${_fold_length} "
+            done
         fi
 
         if $use_noise_ref; then
-            # reference for denoising
+            # references for denoising
             for n in $(seq "${noise_type_num}"); do
                 _train_data_param+="--train_data_path_and_name_and_type ${_enh_train_dir}/noise${n}.scp,noise_ref${n},sound "
                 _train_shape_param+="--train_shape_file ${enh_stats_dir}/train/noise_ref${n}_shape "
@@ -490,9 +518,11 @@ if ! "${skip_train}"; then
             done
         fi
 
+        log "Generate '${enh_exp}/run.sh'. You can resume the process from stage 6 using this script"
+        mkdir -p "${enh_exp}"; echo "${run_args} --stage 6 \"\$@\"; exit \$?" > "${enh_exp}/run.sh"; chmod +x "${enh_exp}/run.sh"
 
         log "enh training started... log: '${enh_exp}/train.log'"
-        if [ "$(echo ${cuda_cmd} | sed -e 's/\s*\([a-zA-Z.]*\)\s.*/\1/')" == queue.pl ]; then
+        if echo "${cuda_cmd}" | grep -e queue.pl -e queue-freegpu.pl &> /dev/null; then
             # SGE can't include "/" in a job name
             jobname="$(basename ${enh_exp})"
         else
@@ -534,6 +564,8 @@ if ! "${skip_eval}"; then
             _ngpu=0
         fi
 
+        log "Generate '${enh_exp}/run_enhance.sh'. You can resume the process from stage 7 using this script"
+        mkdir -p "${enh_exp}"; echo "${run_args} --stage 7 \"\$@\"; exit \$?" > "${enh_exp}/run_enhance.sh"; chmod +x "${enh_exp}/run_enhance.sh"
         _opts=
 
         for dset in "${valid_set}" ${test_sets}; do
@@ -555,7 +587,7 @@ if ! "${skip_eval}"; then
             # shellcheck disable=SC2086
             utils/split_scp.pl "${key_file}" ${split_scps}
 
-            # 2. Submit decoding jobs
+            # 2. Submit inference jobs
             log "Ehancement started... log: '${_logdir}/enh_inference.*.log'"
             # shellcheck disable=SC2086
             ${_cmd} --gpu "${_ngpu}" JOB=1:"${_nj}" "${_logdir}"/enh_inference.JOB.log \
@@ -618,7 +650,7 @@ if ! "${skip_eval}"; then
                 _inf_scp+="--inf_scp ${_inf_dir}/spk${spk}.scp "
             done
 
-            # 2. Submit decoding jobs
+            # 2. Submit scoring jobs
             log "Scoring started... log: '${_logdir}/enh_scoring.*.log'"
             # shellcheck disable=SC2086
             ${_cmd} JOB=1:"${_nj}" "${_logdir}"/enh_scoring.JOB.log \
@@ -641,7 +673,7 @@ if ! "${skip_eval}"; then
             for protocol in ${scoring_protocol}; do
                 # shellcheck disable=SC2046
                 paste $(for j in $(seq ${spk_num}); do echo "${_dir}"/"${protocol}"_spk"${j}" ; done)  |
-                awk 'BEIGN{sum=0}
+                awk 'BEGIN{sum=0}
                     {n=0;score=0;for (i=2; i<=NF; i+=2){n+=1;score+=$i}; sum+=score/n}
                     END{print sum/NR}' > "${_dir}/result_${protocol,,}.txt"
             done
@@ -659,7 +691,9 @@ if "${score_with_asr}"; then
         log "Stage 9: Decode with pretrained ASR model: "
         _cmd=${decode_cmd}
         decode_asr_model=valid.acc.best.pth
-        asr_exp='/mnt/lustre/sjtu/home/cdl54/workspace/asr/develop/espnet/egs2/wsj/asr1/exp/asr_train_asr_transformer_raw_char'
+
+        decode_args="--lm_train_config ${lm_exp}/config.yaml "
+        decode_args+="--lm_file ${lm_exp}/valid.loss.best.pth "
 
         if ${gpu_inference}; then
             _cmd=${cuda_cmd}
@@ -670,7 +704,7 @@ if "${score_with_asr}"; then
         fi
 
 
-        for dset in ${test_sets}; do
+        for dset in ${valid_set} ${test_sets}; do
             _data="${data_feats}/${dset}"
             _inf_dir="${enh_exp}/enhanced_${dset}"
             _dir="${enh_exp}/enhanced_${dset}/scoring_asr"
@@ -686,7 +720,8 @@ if "${score_with_asr}"; then
 
                 # cp ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} ${_ddir}/wav_ori.scp
                 # pick 100 utterences for debug
-                head -100 ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} > ${_ddir}/wav.scp
+                # head -100 ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} > ${_ddir}/wav.scp
+                cat ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} > ${_ddir}/wav.scp
                 cp data/${dset}/text_spk${spk} ${_ddir}/text
                 cp ${_data}/{spk2utt,utt2spk,utt2num_samples,feats_type} ${_ddir}
                 utils/fix_data_dir.sh "${_ddir}"
@@ -696,7 +731,7 @@ if "${score_with_asr}"; then
 
                 scripts/audio/format_wav_scp.sh --nj "${inference_nj}" --cmd "${_cmd}" \
                     --out-filename "wav.scp" \
-                    --audio-format "${audio_format}" --fs "16k" \
+                    --audio-format "${audio_format}" --fs "${fs}" \
                     "${_ddir}/wav_ori.scp" "${_ddir}" \
                     "${_ddir}/formated/logs/" "${_ddir}/formated/"
 
@@ -720,7 +755,7 @@ if "${score_with_asr}"; then
                         --key_file "${_logdir}"/keys.JOB.scp \
                         --asr_train_config "${asr_exp}"/config.yaml \
                         --asr_model_file "${asr_exp}"/"${decode_asr_model}" \
-                        --output_dir "${_logdir}"/output.JOB 
+                        --output_dir "${_logdir}"/output.JOB ${decode_args}
 
                 for f in token token_int score text; do
                     for i in $(seq "${_nj}"); do
@@ -748,7 +783,7 @@ if "${score_with_asr}"; then
         fi
 
 
-        for dset in ${test_sets}; do
+        for dset in ${valid_set} ${test_sets}; do
             _inf_dir="${enh_exp}/enhanced_${dset}"
             _dir="${enh_exp}/enhanced_${dset}/scoring_asr"
 
@@ -846,12 +881,13 @@ if ! "${skip_upload}"; then
             --model_file "${enh_exp}"/"${inference_model}" \
             --option "${enh_exp}"/RESULTS.TXT \
             --option "${enh_stats_dir}"/train/feats_stats.npz  \
+            --option "${enh_exp}"/images \
             --outpath "${packed_model}"
     fi
 
 
-    if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
-        log "Stage 10: Upload model to Zenodo: ${packed_model}"
+    if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
+        log "Stage 12: Upload model to Zenodo: ${packed_model}"
 
         # To upload your model, you need to do:
         #   1. Sign up to Zenodo: https://zenodo.org/
@@ -892,7 +928,7 @@ cd $(pwd | rev | cut -d/ -f1-3 | rev)
 EOF
 
         # NOTE(kamo): The model file is uploaded here, but not published yet.
-        #   Please confirm your record at Zenodo and publish it by youself.
+        #   Please confirm your record at Zenodo and publish it by yourself.
 
         # shellcheck disable=SC2086
         espnet_model_zoo_upload \
