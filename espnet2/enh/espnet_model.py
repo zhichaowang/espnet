@@ -12,8 +12,8 @@ from torch_complex.tensor import ComplexTensor
 from typeguard import check_argument_types
 
 from espnet2.enh.abs_enh import AbsEnhancement
-from espnet2.enh.nets.tasnet import TasNet
 from espnet2.enh.nets.dprnn_raw import FaSNet_base as DPRNN
+from espnet2.enh.nets.tasnet import TasNet
 from espnet2.torch_utils.device_funcs import force_gatherable
 from espnet2.train.abs_espnet_model import AbsESPnetModel
 
@@ -58,10 +58,12 @@ class ESPnetEnhancementModel(AbsESPnetModel):
     def _create_mask_label(mix_spec, ref_spec, mask_type="IAM"):
         """Create mask label.
 
-        :param mix_spec: ComplexTensor(B, T, F)
-        :param ref_spec: [ComplexTensor(B, T, F), ...] or ComplexTensor(B, T, F)
-        :param noise_spec: ComplexTensor(B, T, F)
-        :return: [Tensor(B, T, F), ...] or [ComplexTensor(B, T, F), ...]
+        Args:
+            mix_spec: ComplexTensor(B, T, F)
+            ref_spec: List[ComplexTensor(B, T, F), ...]
+            mask_type: str
+        Returns:
+            labels: List[Tensor(B, T, F), ...] or List[ComplexTensor(B, T, F), ...]
         """
 
         assert mask_type in [
@@ -418,9 +420,11 @@ class ESPnetEnhancementModel(AbsESPnetModel):
     def tf_mse_loss(ref, inf):
         """time-frequency MSE loss.
 
-        :param ref: (Batch, T, F) or (Batch, T, C, F)
-        :param inf: (Batch, T, F) or (Batch, T, C, F)
-        :return: (Batch)
+        Args:
+            ref: (Batch, T, F) or (Batch, T, C, F)
+            inf: (Batch, T, F) or (Batch, T, C, F)
+        Returns:
+            loss: (Batch,)
         """
         assert ref.shape == inf.shape, (ref.shape, inf.shape)
         if ref.dim() == 3:
@@ -438,9 +442,11 @@ class ESPnetEnhancementModel(AbsESPnetModel):
     def tf_l1_loss(ref, inf):
         """time-frequency L1 loss.
 
-        :param ref: (Batch, T, F) or (Batch, T, C, F)
-        :param inf: (Batch, T, F) or (Batch, T, C, F)
-        :return: (Batch)
+        Args:
+            ref: (Batch, T, F) or (Batch, T, C, F)
+            inf: (Batch, T, F) or (Batch, T, C, F)
+        Returns:
+            loss: (Batch,)
         """
         assert ref.shape == inf.shape, (ref.shape, inf.shape)
         if ref.dim() == 3:
@@ -455,11 +461,13 @@ class ESPnetEnhancementModel(AbsESPnetModel):
 
     @staticmethod
     def si_snr_loss(ref, inf):
-        """si-snr loss
+        """SI-SNR loss
 
-        :param ref: (Batch, samples)
-        :param inf: (Batch, samples)
-        :return: (Batch)
+        Args:
+            ref: (Batch, samples)
+            inf: (Batch, samples)
+        Returns:
+            loss: (Batch,)
         """
         ref = ref / torch.norm(ref, p=2, dim=1, keepdim=True)
         inf = inf / torch.norm(inf, p=2, dim=1, keepdim=True)
@@ -474,11 +482,13 @@ class ESPnetEnhancementModel(AbsESPnetModel):
 
     @staticmethod
     def si_snr_loss_zeromean(ref, inf):
-        """si_snr loss with zero-mean in pre-processing.
+        """SI-SNR loss with zero-mean in pre-processing.
 
-        :param ref: (Batch, samples)
-        :param inf: (Batch, samples)
-        :return: (Batch)
+        Args:
+            ref: (Batch, samples)
+            inf: (Batch, samples)
+        Returns:
+            loss: (Batch,)
         """
         eps = 1e-8
 
@@ -673,7 +683,7 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
 
         if (
             len(unsup_1spk_mixtures) + len(unsup_2spk_mixtures) > 1
-        ):  # there is 2 or more unsup mixtures
+        ):  # there are 2 or more unsup mixtures
             mix_of_mixtures, mix_ref = self.get_mix_of_mixtures_spk1or2(
                 unsup_1spk_mixtures, unsup_2spk_mixtures, self.bs_limit
             )  # (Batch',T) (Batch',2,T)
@@ -746,7 +756,7 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
                 ]
 
                 # compute TF masking loss
-                # TODO: Chenda, Shall we add options for
+                # TODO(Chenda): Shall we add options for
                 #  computing loss on the masked spectrum?
                 tf_loss, perm = self._permutation_loss(
                     mask_ref, mask_pre_, self.tf_mse_loss
@@ -913,11 +923,14 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
 
     @staticmethod
     def get_mix_of_mixtures_spk1or2(unsup_1spk, unsup_2spk, bs_limit=True):
-        """
-        :param unsup_1spk: List[uttids,mix,ref]
-        :param unsup_2spk: List[uttids,mix,ref]
-        :return: mix_of_mixtures(Batch', T)
-                 mix_ref(Batch', 2, T)
+        """Generate mixture of mixtures.
+
+        Args:
+            unsup_1spk: List[uttids,mix,ref]
+            unsup_2spk: List[uttids,mix,ref]
+        Returns:
+            mix_of_mixtures: (Batch', T)
+            mix_ref: (Batch', 2, T)
         """
         # Choose one channel as the unsup 1spk mixture
         if len(unsup_1spk):
@@ -974,12 +987,16 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
         batch_size = len(unsup_1spk) + len(unsup_2spk)
         uttids = uttids_1spk + uttids_2spk
         if (type(speech_mix_1spk) is not list) and (type(speech_mix_2spk) is not list):
-            speech_mix = torch.cat([speech_mix_1spk, speech_mix_2spk], dim=0)  # BS,T
-            speech_ref = torch.cat([speech_ref_1spk, speech_ref_2spk], dim=0)  # BS,2,T
+            # (BS, T)
+            speech_mix = torch.cat([speech_mix_1spk, speech_mix_2spk], dim=0)
+            # (BS, 2, T)
+            speech_ref = torch.cat(  # noqa: F841
+                [speech_ref_1spk, speech_ref_2spk], dim=0
+            )
         if (type(speech_mix_1spk) is not list) and (type(speech_mix_2spk) is list):
-            speech_mix = speech_mix_1spk  # BS,T
+            speech_mix = speech_mix_1spk  # (BS, T)
         if (type(speech_mix_1spk) is list) and (type(speech_mix_2spk) is not list):
-            speech_mix = speech_mix_2spk  # BS,T
+            speech_mix = speech_mix_2spk  # (BS, T)
 
         spks_list = [uttid.split("_")[:2] for uttid in uttids]
         mix_of_mixtures_list = []
@@ -1009,12 +1026,15 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
 
     @staticmethod
     def get_mix_of_mixtures(uttids, speech_mix, speech_ref, bs_limit=True):
-        """
-        :param uttids: (Batch)
-        :param speech_mix: (Batch, T)
-        :param speech_ref: (Batch, num_spk, T)
-        :return: mix_of_mixtures(Batch', T)
-                 mix_ref(Batch', 2, T)
+        """Generate mixture of mixtures.
+
+        Args:
+            uttids: (Batch)
+            speech_mix: (Batch, T)
+            speech_ref: (Batch, num_spk, T)
+        Returns:
+            mix_of_mixtures: (Batch', T)
+            mix_ref: (Batch', 2, T)
         """
         batch_size = len(uttids)
         spks_list = [uttid.split("_")[:2] for uttid in uttids]
@@ -1047,10 +1067,13 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
 
     @staticmethod
     def mixIT_si_snr_loss_zeromean(ref, inf, SNR_max=30):
-        """
-        :param ref: (Batch, samples)
-        :param inf: (Batch, samples)
-        :return: (Batch)
+        """SI-SNR loss with zero-mean in pre-processing for mixIT.
+
+        Args:
+            ref: (Batch, samples)
+            inf: (Batch, samples)
+        Returns:
+            loss: (Batch)
         """
         eps = 1e-8
         alpha = 10 ** (-1 * float(SNR_max) / 10)
@@ -1086,14 +1109,15 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
 
     @staticmethod
     def _mixIT_loss(ref, inf, criterion=mixIT_si_snr_loss_zeromean, perm=None):
-        """
+        """Loss for model training.
+
         Args:
-            ref (torch.Tensor): [2, batch', T, ...]
-            inf (torch.Tensor): [M, batch', T, ...]
+            ref (torch.Tensor): (2, batch', T, ...)
+            inf (torch.Tensor): (M, batch', T, ...)
             criterion (function): Loss function
             perm: (batch)
         Returns:
-            torch.Tensor: (batch)
+            loss (torch.Tensor): (batch)
         """
         num_aim = len(ref)
         assert num_aim == 2
@@ -1101,10 +1125,7 @@ class ESPnetEnhancementModel_mixIT(ESPnetEnhancementModel):
         idx_list = [[0, 1] for __ in range(M)]
 
         def pair_loss(permutation):
-            """
-            :param permutation: tuple like (0,0,1,...,1) with length of M
-            :return:
-            """
+            # permutation: tuple like (0,0,1,...,1) with length of M
             first_row = torch.FloatTensor(permutation).to(ref.device)
             mixing_matrix = (
                 torch.stack([first_row, 1 - first_row], dim=0)

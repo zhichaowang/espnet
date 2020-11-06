@@ -13,11 +13,11 @@ from typeguard import check_return_type
 
 
 from espnet2.enh.abs_enh import AbsEnhancement
-from espnet2.enh.nets.tasnet import TasNet
-from espnet2.enh.nets.dprnn_raw import FaSNet_base as DPRNN
-from espnet2.enh.nets.tf_mask_net import TFMaskingNet
-from espnet2.enh.nets.beamformer_net import BeamformerNet
 from espnet2.enh.espnet_model import ESPnetEnhancementModel_mixIT
+from espnet2.enh.nets.beamformer_net import BeamformerNet
+from espnet2.enh.nets.dprnn_raw import FaSNet_base as DPRNN
+from espnet2.enh.nets.tasnet import TasNet
+from espnet2.enh.nets.tf_mask_net import TFMaskingNet
 from espnet2.tasks.abs_task import AbsTask
 from espnet2.torch_utils.initialize import initialize
 from espnet2.train.class_choices import ClassChoices
@@ -129,7 +129,7 @@ class EnhancementTask(AbsTask):
         [Collection[Tuple[str, Dict[str, np.ndarray]]]],
         Tuple[List[str], Dict[str, torch.Tensor]],
     ]:
-        # TODO:jing  here to mix the mixtures.
+        # TODO(jing)  here to mix the mixtures.
         assert check_argument_types()
 
         return CommonCollateFn(float_pad_value=0.0, int_pad_value=0)

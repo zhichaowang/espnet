@@ -295,9 +295,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
         for spk in ${_spk_list};do
             cp "${data_feats}/org/${dset}/${spk}.scp" "${data_feats}/${dset}/${spk}.scp"
         done
-        # Remove short utterances
-        _feats_type="$(<${data_feats}/${dset}/feats_type)"
-
+        # Remove short utterance
         min_length=2560
 
         # utt2num_samples is created by format_wav_scp.sh
@@ -332,7 +330,6 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
         _opts+="--config ${enh_config} "
     fi
 
-    _feats_type="$(<${_enh_train_dir}/feats_type)"
     _scp=wav.scp
     # "sound" supports "wav", "flac", etc.
     _type=sound
@@ -425,7 +422,6 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
         _opts+="--config ${enh_config} "
     fi
 
-    _feats_type="$(<${_enh_train_dir}/feats_type)"
     _scp=wav.scp
     # "sound" supports "wav", "flac", etc.
     _type=sound
