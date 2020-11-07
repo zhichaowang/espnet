@@ -52,10 +52,12 @@ class ESPnetEnhancementModel(AbsESPnetModel):
     def _create_mask_label(mix_spec, ref_spec, mask_type="IAM"):
         """Create mask label.
 
-        :param mix_spec: ComplexTensor(B, T, F)
-        :param ref_spec: [ComplexTensor(B, T, F), ...] or ComplexTensor(B, T, F)
-        :param noise_spec: ComplexTensor(B, T, F)
-        :return: [Tensor(B, T, F), ...] or [ComplexTensor(B, T, F), ...]
+        Args:
+            mix_spec: ComplexTensor(B, T, F)
+            ref_spec: List[ComplexTensor(B, T, F), ...]
+            mask_type: str
+        Returns:
+            labels: List[Tensor(B, T, F), ...] or List[ComplexTensor(B, T, F), ...]
         """
 
         assert mask_type in [
@@ -412,9 +414,11 @@ class ESPnetEnhancementModel(AbsESPnetModel):
     def tf_mse_loss(ref, inf):
         """time-frequency MSE loss.
 
-        :param ref: (Batch, T, F) or (Batch, T, C, F)
-        :param inf: (Batch, T, F) or (Batch, T, C, F)
-        :return: (Batch)
+        Args:
+            ref: (Batch, T, F) or (Batch, T, C, F)
+            inf: (Batch, T, F) or (Batch, T, C, F)
+        Returns:
+            loss: (Batch,)
         """
         assert ref.shape == inf.shape, (ref.shape, inf.shape)
         if ref.dim() == 3:
@@ -432,9 +436,11 @@ class ESPnetEnhancementModel(AbsESPnetModel):
     def tf_l1_loss(ref, inf):
         """time-frequency L1 loss.
 
-        :param ref: (Batch, T, F) or (Batch, T, C, F)
-        :param inf: (Batch, T, F) or (Batch, T, C, F)
-        :return: (Batch)
+        Args:
+            ref: (Batch, T, F) or (Batch, T, C, F)
+            inf: (Batch, T, F) or (Batch, T, C, F)
+        Returns:
+            loss: (Batch,)
         """
         assert ref.shape == inf.shape, (ref.shape, inf.shape)
         if ref.dim() == 3:
@@ -449,11 +455,13 @@ class ESPnetEnhancementModel(AbsESPnetModel):
 
     @staticmethod
     def si_snr_loss(ref, inf):
-        """si-snr loss
+        """SI-SNR loss
 
-        :param ref: (Batch, samples)
-        :param inf: (Batch, samples)
-        :return: (Batch)
+        Args:
+            ref: (Batch, samples)
+            inf: (Batch, samples)
+        Returns:
+            loss: (Batch,)
         """
         ref = ref / torch.norm(ref, p=2, dim=1, keepdim=True)
         inf = inf / torch.norm(inf, p=2, dim=1, keepdim=True)
@@ -468,11 +476,13 @@ class ESPnetEnhancementModel(AbsESPnetModel):
 
     @staticmethod
     def si_snr_loss_zeromean(ref, inf):
-        """si_snr loss with zero-mean in pre-processing.
+        """SI-SNR loss with zero-mean in pre-processing.
 
-        :param ref: (Batch, samples)
-        :param inf: (Batch, samples)
-        :return: (Batch)
+        Args:
+            ref: (Batch, samples)
+            inf: (Batch, samples)
+        Returns:
+            loss: (Batch,)
         """
         eps = 1e-8
 
