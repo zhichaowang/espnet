@@ -1,6 +1,6 @@
 batch_size: 4
 accum_grad: 8
-max_epoch: 200
+max_epoch: 80
 patience: none
 num_att_plot: 0
 unused_parameters: true

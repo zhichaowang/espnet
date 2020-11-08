@@ -101,20 +101,17 @@ scoring_protocol="STOI SDR SAR SIR"
 ref_channel=0
 
 # Decoding related
-inference_lm=valid.loss.best.pth            # Language modle path for decoding.
+decode_lm=valid.loss.best.pth               # Language modle path for decoding.
 decode_tag=                                 # Suffix to the result dir for decoding.
 decode_config=                              # Config for decoding.
 decode_args="--normalize_output_wav true "  # Arguments for decoding, e.g., "--lm_weight 0.1".
                                             # Note that it will overwrite args in decode config.
-# TODO(Jing): needs more clean configure choice
-decode_joint_model=valid.acc.best.pth
-decode_lm=valid.loss.best.pth          # Language modle path for decoding.
-decode_asr_model=${decode_joint_model} # ASR model path for decoding.
-                                       # e.g.
-                                       # decode_asr_model=train.loss.best.pth
-                                       # decode_asr_model=3epoch.pth
-                                       # decode_asr_model=valid.acc.best.pth
-                                       # decode_asr_model=valid.loss.ave.pth
+decode_joint_model=valid.acc.ave.pth        # ASR model path for decoding.
+                                            # e.g.
+                                            # decode_joint_model=train.loss.best.pth
+                                            # decode_joint_model=3epoch.pth
+                                            # decode_joint_model=valid.acc.best.pth
+                                            # decode_joint_model=valid.loss.ave.pth
 
 # [Task dependent] Set the datadir name created by local/data.sh
 train_set=       # Name of training set.
@@ -197,7 +194,6 @@ Options:
     --decode_args      # Arguments for decoding, e.g., "--lm_weight 0.1" (default="${decode_args}").
                        # Note that it will overwrite args in decode config.
     --decode_lm        # Language modle path for decoding (default="${decode_lm}").
-    --decode_asr_model # ASR model path for decoding (default="${decode_asr_model}").
 
     # Enhancemnt model related
     --joint_tag    # Suffix to the result dir for enhancement model training (default="${joint_tag}").
@@ -345,7 +341,7 @@ if [ -z "${decode_tag}" ]; then
     if "${use_lm}"; then
         decode_tag+="_lm_${lm_tag}_$(echo "${decode_lm}" | sed -e "s/\//_/g" -e "s/\.[^.]*$//g")"
     fi
-    decode_tag+="_asr_model_$(echo "${decode_asr_model}" | sed -e "s/\//_/g" -e "s/\.[^.]*$//g")"
+    decode_tag+="_asr_model_$(echo "${decode_joint_model}" | sed -e "s/\//_/g" -e "s/\.[^.]*$//g")"
 fi
 
 # The directory used for collect-stats mode
@@ -1084,10 +1080,10 @@ if ! "${skip_eval}"; then
         if "${use_lm}"; then
             if "${use_word_lm}"; then
                 _opts+="--word_lm_train_config ${lm_exp}/config.yaml "
-                _opts+="--word_lm_file ${lm_exp}/${inference_lm} "
+                _opts+="--word_lm_file ${lm_exp}/${decode_lm} "
             else
                 _opts+="--lm_train_config ${lm_exp}/config.yaml "
-                _opts+="--lm_file ${lm_exp}/${inference_lm} "
+                _opts+="--lm_file ${lm_exp}/${decode_lm} "
             fi
         fi
 
