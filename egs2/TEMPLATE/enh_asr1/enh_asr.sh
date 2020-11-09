@@ -101,24 +101,21 @@ scoring_protocol="STOI SDR SAR SIR"
 ref_channel=0
 
 # Decoding related
-inference_lm=valid.loss.best.pth            # Language modle path for decoding.
+decode_lm=valid.loss.best.pth               # Language modle path for decoding.
 decode_tag=                                 # Suffix to the result dir for decoding.
 decode_config=                              # Config for decoding.
 decode_args="--normalize_output_wav true "  # Arguments for decoding, e.g., "--lm_weight 0.1".
                                             # Note that it will overwrite args in decode config.
-# TODO(Jing): needs more clean configure choice
-decode_joint_model=valid.acc.best.pth
-decode_lm=valid.loss.best.pth          # Language modle path for decoding.
-decode_asr_model=${decode_joint_model} # ASR model path for decoding.
-                                       # e.g.
-                                       # decode_asr_model=train.loss.best.pth
-                                       # decode_asr_model=3epoch.pth
-                                       # decode_asr_model=valid.acc.best.pth
-                                       # decode_asr_model=valid.loss.ave.pth
+decode_joint_model=valid.acc.ave.pth        # ASR model path for decoding.
+                                            # e.g.
+                                            # decode_joint_model=train.loss.best.pth
+                                            # decode_joint_model=3epoch.pth
+                                            # decode_joint_model=valid.acc.best.pth
+                                            # decode_joint_model=valid.loss.ave.pth
 
 # [Task dependent] Set the datadir name created by local/data.sh
 train_set=       # Name of training set.
-train_aux_sets=  # Name of auxiliary training set. (Single Speaker)
+train_aux_set=  # Name of auxiliary training set. (Single Speaker)
 valid_set=       # Name of validation set used for monitoring/tuning network training
 test_sets=       # Names of test sets. Multiple items (e.g., both dev and eval sets) can be specified.
 enh_speech_fold_length=800 # fold_length for speech data during enhancement training
@@ -197,7 +194,6 @@ Options:
     --decode_args      # Arguments for decoding, e.g., "--lm_weight 0.1" (default="${decode_args}").
                        # Note that it will overwrite args in decode config.
     --decode_lm        # Language modle path for decoding (default="${decode_lm}").
-    --decode_asr_model # ASR model path for decoding (default="${decode_asr_model}").
 
     # Enhancemnt model related
     --joint_tag    # Suffix to the result dir for enhancement model training (default="${joint_tag}").
@@ -226,7 +222,7 @@ Options:
 
     # [Task dependent] Set the datadir name created by local/data.sh
     --train_set     # Name of training set (required).
-    --train_aux_sets=     # Name of auxilary sets (default="${train_aux_sets}")
+    --train_aux_set=     # Name of auxilary sets (default="${train_aux_set}")
     --valid_set=    # Name of validation set used for monitoring/tuning network training (required).
     --test_sets=    # Names of test sets. Multiple items (e.g., both dev and eval sets) can be specified (required).
     --srctexts      # Used for the training of BPE and LM and the creation of a vocabulary list (required).
@@ -258,11 +254,9 @@ fi
 
 # Check required arguments
 [ -z "${train_set}" ] && { log "${help_message}"; log "Error: --train_set is required"; exit 2; };
-[ -z "${train_aux_sets}" ] && { log "${help_message}"; log "Warning: --train_aux_sets is empty. No auxiliary training data is provided."; };
+[ -z "${train_aux_set}" ] && { log "${help_message}"; log "Warning: --train_aux_set is empty. No auxiliary training data is provided."; };
 [ -z "${valid_set}" ] &&   { log "${help_message}"; log "Error: --valid_set is required"  ; exit 2; };
 [ -z "${test_sets}" ] && { log "${help_message}"; log "Error: --test_sets is required"; exit 2; };
-
-[ -z "${train_aux_sets}" ] && train_aux_sets="${train_set}" # set the train_aux_set as train_set
 
 # Check feature type
 if [ "${feats_type}" = raw ]; then
@@ -345,7 +339,7 @@ if [ -z "${decode_tag}" ]; then
     if "${use_lm}"; then
         decode_tag+="_lm_${lm_tag}_$(echo "${decode_lm}" | sed -e "s/\//_/g" -e "s/\.[^.]*$//g")"
     fi
-    decode_tag+="_asr_model_$(echo "${decode_asr_model}" | sed -e "s/\//_/g" -e "s/\.[^.]*$//g")"
+    decode_tag+="_asr_model_$(echo "${decode_joint_model}" | sed -e "s/\//_/g" -e "s/\.[^.]*$//g")"
 fi
 
 # The directory used for collect-stats mode
@@ -406,7 +400,7 @@ if ! "${skip_data_prep}"; then
     if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
         if [ "${feats_type}" = raw ]; then
             log "Stage 3: Format wav.scp: data/ -> ${data_feats}/org/"
-    
+
             # ====== Recreating "wav.scp" ======
             # Kaldi-wav.scp, which can describe the file path with unix-pipe, like "cat /some/path |",
             # shouldn't be used in training process.
@@ -414,9 +408,10 @@ if ! "${skip_data_prep}"; then
             # and it can also change the audio-format and sampling rate.
             # If nothing is need, then format_wav_scp.sh does nothing:
             # i.e. the input file format and rate is same as the output.
-    
-            for dset in ${train_aux_sets} "${valid_set}" ${test_sets}; do
-                if [[ "${train_aux_sets,,}" == *${dset}* ]] || [ "${dset}" = "${valid_set}" ]; then
+
+            for dset in "${train_set}" "${train_aux_set}" "${valid_set}" ${test_sets}; do
+                if [ "${dset}" = "${train_set}" ] || [[ "${dset}" = "${train_aux_set}" ]] || \
+                    [ "${dset}" = "${valid_set}" ]; then
                     _suf="/org"
                 else
                     _suf=""
@@ -439,8 +434,7 @@ if ! "${skip_data_prep}"; then
                     # Where the time is written in seconds.
                     _opts+="--segments data/${dset}/segments "
                 fi
-    
-    
+
                 _spk_list=" "
                 if ${use_signal_ref}; then
                     for i in $(seq ${spk_num}); do
@@ -456,13 +450,6 @@ if ! "${skip_data_prep}"; then
                     fi
                 fi
 
-                # TODO(Jing): conduct single-spk aux sets independetly
-                # This part should remove the spk1,spk2... in the spk_list for single-spk set
-                # The below is for WSJ1 aux set:
-                # if [ ${dset} == "train_si284_1" ]; then
-                #     _spk_list=" "
-                # fi
-    
                 for spk in ${_spk_list} "wav" ; do
                     # shellcheck disable=SC2086
                     scripts/audio/format_wav_scp.sh --nj "${nj}" --cmd "${train_cmd}" \
@@ -470,26 +457,26 @@ if ! "${skip_data_prep}"; then
                         --audio-format "${audio_format}" --fs "${fs}" ${_opts} \
                         "data/${dset}/${spk}.scp" "${data_feats}${_suf}/${dset}" \
                         "${data_feats}${_suf}/${dset}/logs/${spk}" "${data_feats}${_suf}/${dset}/data/${spk}"
-    
+
                 done
                 echo "${feats_type}" > "${data_feats}${_suf}/${dset}/feats_type"
-    
+
             done
         fi
     fi
-    
-    
+
+
     if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
         log "Stage 4: Remove long/short data: ${data_feats}/org -> ${data_feats}"
-    
+
         # NOTE(kamo): Not applying to test_sets to keep original data
-        for dset in ${train_aux_sets} "${valid_set}"; do
-    
+        for dset in "${train_set}" "${train_aux_set}" "${valid_set}"; do
+
             # Copy data dir
             utils/copy_data_dir.sh "${data_feats}/org/${dset}" "${data_feats}/${dset}"
             cp "${data_feats}/org/${dset}/feats_type" "${data_feats}/${dset}/feats_type"
-            if [ -f data/"${dset}"/org/utt2category ]; then
-                cp data/"${dset}"/org/utt2category "${data_feats}/${dset}/utt2category"
+            if [ -f ${data_feats}/org/${dset}/utt2category ]; then
+                cp ${data_feats}/org/${dset}/utt2category "${data_feats}/${dset}/utt2category"
                 utt_extra_files="utt2category "
             else
                 log "No utt2category found."
@@ -519,18 +506,10 @@ if ! "${skip_data_prep}"; then
 
             # TODO(Jing): conduct single-spk aux sets independetly
             # This part should remove the spk1,spk2... in the spk_list for single-spk set
-            # The below is for WSJ1 aux set:
-            # if [ ${dset} == "train_si284_1" ]; then
-            #     _spk_list=" "
-            # fi
 
             # Remove short utterances
             _feats_type="$(<${data_feats}/${dset}/feats_type)"
             if [ "${_feats_type}" = raw ]; then
-                for spk in ${_spk_list};do
-                    cp "${data_feats}/org/${dset}/${spk}.scp" "${data_feats}/${dset}/${spk}.scp"
-                done
-
                 _fs=$(python3 -c "import humanfriendly as h;print(h.parse_size('${fs}'))")
                 _min_length=$(python3 -c "print(int(${min_wav_duration} * ${_fs}))")
                 _max_length=$(python3 -c "print(int(${max_wav_duration} * ${_fs}))")
@@ -540,44 +519,51 @@ if ! "${skip_data_prep}"; then
                     awk -v min_length="${_min_length}" -v max_length="${_max_length}" \
                         '{ if ($2 > min_length && $2 < max_length ) print $0; }' \
                         >"${data_feats}/${dset}/utt2num_samples"
-                for file in ${_spk_list} "wav"; do
+
+                filter_list="wav"
+                if ${use_signal_ref}; then
+                    for spk in ${_spk_list};do
+                        filter_list=${spk}" "${filter_list}
+                        cp "${data_feats}/org/${dset}/${spk}.scp" "${data_feats}/${dset}/${spk}.scp"
+                    done
+                fi
+
+                for file in ${filter_list}; do
                     <"${data_feats}/org/${dset}/${file}.scp" \
                         utils/filter_scp.pl "${data_feats}/${dset}/utt2num_samples"  \
                         >"${data_feats}/${dset}/${file}.scp"
                 done
             fi
 
-            for spk in ${_spk_list}; do
-                <"${data_feats}/org/${dset}/text_${spk}" \
+            for i in $(seq ${spk_num}); do
+                <"${data_feats}/org/${dset}/text_spk${i}" \
                     utils/filter_scp.pl "${data_feats}/${dset}/utt2num_samples"  \
-                    >"${data_feats}/${dset}/text_${spk}"
+                    >"${data_feats}/${dset}/text_spk${i}"
             done
             # Remove empty text
-            if [ -f ${data_feats}/org/${dset}/text_spk1 ]; then
-                for i in $(seq ${spk_num}); do
-                    <"${data_feats}/org/${dset}/text_spk${i}" \
-                        awk ' { if( NF != 1 ) print $0; } ' >"${data_feats}/${dset}/text_spk${i}"
-                done
-            else
-                <"${data_feats}/org/${dset}/text" \
-                    awk ' { if( NF != 1 ) print $0; } ' >"${data_feats}/${dset}/text"
-            fi
+            for i in $(seq ${spk_num}); do
+                <"${data_feats}/org/${dset}/text_spk${i}" \
+                    awk ' { if( NF != 1 ) print $0; } ' >"${data_feats}/${dset}/text_spk${i}"
+            done
 
             # fix_data_dir.sh leaves only utts which exist in all files
             utils/fix_data_dir.sh --utt_extra_files "${utt_extra_files}" "${data_feats}/${dset}"
         done
 
-        # TODO(xkc09): modify this
-        if [ "${train_aux_sets}" != "${train_set}" ]; then
-            log "Collect the aux sets into the train set."
-            rm -r "${data_feats}/${train_set}" 2>/dev/null
-            mkdir -p "${data_feats}/${train_set}"
-            for dset in ${train_aux_sets}; do
+        if [ ! -z "${train_aux_set}" ]; then
+            combined_train_set=${train_set}"_"${train_aux_set}
+            log "Combine the aux set with the train set into new set: ${data_feats}/${combined_train_set}."
+            if [ -d ${data_feats}/${combined_train_set} ]; then
+                rm -r ${data_feats}/${combined_train_set} 2>/dev/null
+            fi
+            mkdir -p "${data_feats}/${combined_train_set}"
+            for dset in "${train_set}" "${train_aux_set}"; do
                 for f in `ls ${data_feats}/${dset}/`; do
-                    cat ${data_feats}/${dset}/${f} >> ${data_feats}/${train_set}/${f}
+                    cat ${data_feats}/${dset}/${f} >> ${data_feats}/${combined_train_set}/${f}
                 done
             done
-            cp ${data_feats}/${dset}/feats_type ${data_feats}/${train_set}/feats_type
+            cp ${data_feats}/${dset}/feats_type ${data_feats}/${combined_train_set}/feats_type
+            train_set=${combined_train_set}
         else
             log "Train set is the same as aux sets."
         fi
@@ -1084,10 +1070,10 @@ if ! "${skip_eval}"; then
         if "${use_lm}"; then
             if "${use_word_lm}"; then
                 _opts+="--word_lm_train_config ${lm_exp}/config.yaml "
-                _opts+="--word_lm_file ${lm_exp}/${inference_lm} "
+                _opts+="--word_lm_file ${lm_exp}/${decode_lm} "
             else
                 _opts+="--lm_train_config ${lm_exp}/config.yaml "
-                _opts+="--lm_file ${lm_exp}/${inference_lm} "
+                _opts+="--lm_file ${lm_exp}/${decode_lm} "
             fi
         fi
 
