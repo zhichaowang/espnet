@@ -16,4 +16,5 @@ test_set="test "
     --lm_config conf/train_lm.yaml \
     --valid_set ${valid_set} \
     --test_sets ${test_set} \
+    --asr_config conf/train_asr_transformer.yaml \
     --srctexts "data/${train_set}/text" "$@"
