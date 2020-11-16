@@ -40,10 +40,14 @@ class ESPnetEnhancementModel(AbsESPnetModel):
         self.enh_model = enh_model
         self.num_spk = enh_model.num_spk
         self.num_noise_type = getattr(self.enh_model, "num_noise_type", 1)
-        # get mask type for TF-domain models
+
+        # get mask type for TF-domain models (only used when loss_type="mask_*")
         self.mask_type = getattr(self.enh_model, "mask_type", None)
         # get loss type for model training
         self.loss_type = getattr(self.enh_model, "loss_type", None)
+        # whether to compute the TF-domain loss while enforcing STFT consistency
+        self.stft_consistency = False
+
         assert self.loss_type in ALL_LOSS_TYPES, self.loss_type
         # for multi-channel signal
         self.ref_channel = getattr(self.enh_model, "ref_channel", -1)
@@ -258,9 +262,18 @@ class ESPnetEnhancementModel(AbsESPnetModel):
             spectrum_mix = ComplexTensor(spectrum_mix[..., 0], spectrum_mix[..., 1])
 
             # predict separated speech and masks
-            spectrum_pre, tf_length, mask_pre = self.enh_model(
-                speech_mix, speech_lengths
-            )
+            if self.stft_consistency:
+                # pseudo STFT -> time-domain -> STFT (compute loss)
+                speech_pre, speech_lengths, mask_pre = self.enh_model.forward_rawwav(
+                    speech_mix, speech_lengths
+                )
+                spectrum_pre, tf_length = self.enh_model.stft(input, speech_lengths)
+            else:
+                # compute loss on pseudo STFT directly
+                spectrum_pre, tf_length, mask_pre = self.enh_model(
+                    speech_mix, speech_lengths
+                )
+
             if spectrum_pre is not None and not isinstance(
                 spectrum_pre[0], ComplexTensor
             ):
