@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Set bash to 'debug' mode, it will exit on :
 # -e 'error', -u 'undefined variable', -o ... 'error in pipeline', -x 'print commands',
 set -e
@@ -32,7 +31,7 @@ skip_upload=true     # Skip packing and uploading stages.
 ngpu=8               # The number of gpus ("0" uses cpu, otherwise use gpu).
 num_nodes=1          # The number of nodes.
 nj=40                # The number of parallel jobs.
-inference_nj=30      # The number of parallel jobs in decoding.
+inference_nj=40      # The number of parallel jobs in decoding.
 gpu_inference=false  # Whether to perform gpu decoding.
 dumpdir=dump         # Directory to dump features.
 expdir=exp           # Directory to save experiments.
@@ -64,7 +63,7 @@ bpe_char_cover=1.0  # character coverage when modeling BPE
 
 # Language model related
 use_lm=true       # Use language model for ASR decoding.
-lm_tag=1wh_mixLID         # Suffix to the result dir for language model training.
+lm_tag=           # Suffix to the result dir for language model training.
 lm_exp=           # Specify the direcotry path for LM experiment.
                   # If this option is specified, lm_tag is ignored.
 lm_config=        # Config for language model training.
@@ -76,7 +75,7 @@ num_splits_lm=1   # Number of splitting for lm corpus.
 word_vocab_size=10000 # Size of word vocabulary.
 
 # ASR model related
-asr_tag=train_asr_conformer_relPos_swish_8GPU_accgrad2_batch89600_14E4D_warmupLR0005_1wh_extracted_char_mwer    # Suffix to the result dir for asr model training.
+asr_tag=train_asr_conformer_relPos_swish_8GPU_accgrad1_warmupLR_500h_extracted_char_mwer    # Suffix to the result dir for asr model training.
 asr_exp=    # Specify the direcotry path for ASR experiment.
             # If this option is specified, asr_tag is ignored.
 asr_config= # Config for asr model training.
@@ -92,7 +91,7 @@ inference_args=   # Arguments for decoding, e.g., "--lm_weight 0.1".
                   # Note that it will overwrite args in inference config.
 inference_lm=valid.loss.ave.pth       # Language modle path for decoding.
 #inference_asr_model=valid.acc.ave.pth # ASR model path for decoding.
-inference_asr_model=valid.acc.ave_10best.pth # ASR model path for decoding.
+inference_asr_model=5epoch.pth # ASR model path for decoding.
                                       # e.g.
                                       # inference_asr_model=train.loss.best.pth
                                       # inference_asr_model=3epoch.pth
@@ -257,7 +256,7 @@ bpedir="${token_listdir}/bpe_${bpemode}${nbpe}"
 bpeprefix="${bpedir}"/bpe
 bpemodel="${bpeprefix}".model
 bpetoken_list="${bpedir}"/tokens.txt
-chartoken_list="${token_listdir}"/char/bpe_5k/tokens.txt
+chartoken_list="${token_listdir}"/char/chn/tokens.txt
 # NOTE: keep for future development.
 # shellcheck disable=SC2034
 wordtoken_list="${token_listdir}"/word/tokens.txt
@@ -311,11 +310,12 @@ if [ -z "${lm_tag}" ]; then
 fi
 
 # The directory used for collect-stats mode
-asr_stats_dir="${expdir}/asr_1wh_mixLID_stats"
+asr_stats_dir="${expdir}/asr_stats"
+#asr_stats_dir="${expdir}/asr_debug_stats"
 if [ -n "${speed_perturb_factors}" ]; then
     asr_stats_dir="${asr_stats_dir}_sp"
 fi
-lm_stats_dir="${expdir}/lm_1wh_mixLID_stats"
+lm_stats_dir="${expdir}/lm_stats"
 # The directory used for training commands
 if [ -z "${asr_exp}" ]; then
     asr_exp="${expdir}/asr_${asr_tag}"

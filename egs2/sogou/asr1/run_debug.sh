@@ -9,7 +9,7 @@ train_set=train_sogou_fbank_500h
 valid_set=test8000_sogou
 test_sets="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou"
 
-asr_config=conf/train_asr_conformer_relPos_swish_8GPU_accgrad1_warmupLR_500h.yaml
+asr_config=conf/train_debug.yaml
 inference_config=conf/decode_asr_transformer.yaml
 
 lm_config=conf/train_lm.yaml
@@ -20,7 +20,7 @@ use_wordlm=false
 # (train_set will be "${train_set}_sp" if speed_perturb_factors is specified)
 speed_perturb_factors=
 
-./asr_conformer_8GPU_500h.sh                           \
+./asr_debug.sh                           \
     --lang zh                                          \
     --audio_format wav                                 \
     --feats_type extracted                             \

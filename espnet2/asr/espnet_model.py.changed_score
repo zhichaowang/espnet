@@ -143,20 +143,20 @@ class ESPnetASRModel(AbsESPnetModel):
 
         # for data-parallel
         text = text[:, : text_lengths.max()]
-
         # generate nbest and nbest_data for mwer training
         if self.training and self.mwer_weight != 0:
             # do beam search
             self.eval()
             nbest_hyps = self._beam_search(speech, speech_lengths)
-            # keep nbest hypothesis
+
             nbest_hyps = [nbest_hyps[h][: self.nbest] for h in range(len(nbest_hyps))]
-            hyp_scores = [[nbest_hyps[h][n].score for n in range(self.nbest)] for h in range(len(nbest_hyps))]
-            hyp_scores = torch.tensor(hyp_scores).to(text.device)
-            hyp_scores = hyp_scores.exp()
             speech, speech_lengths, text, text_lengths = self._make_mwer_data(
                 nbest_hyps, speech, speech_lengths, text, text_lengths)
             self.train()
+#            # turn off BatchNorm
+#            for k, v in self.named_modules():
+#                if "conv_module.norm" in k:
+#                    v.training = False
 
         # 1. Encoder
         encoder_out, encoder_out_lens = self.encode(speech, speech_lengths)
@@ -170,7 +170,7 @@ class ESPnetASRModel(AbsESPnetModel):
             )
         else:
             loss_att, acc_att, cer_att, wer_att = self._calc_att_mwer_loss(
-                encoder_out, encoder_out_lens, text, text_lengths, batch_size, hyp_scores
+                encoder_out, encoder_out_lens, text, text_lengths, batch_size
             )
 
         # 2b. CTC branch
@@ -311,7 +311,6 @@ class ESPnetASRModel(AbsESPnetModel):
         ys_pad: torch.Tensor,
         ys_pad_lens: torch.Tensor,
         batch_size: int,
-        hyp_scores: torch.Tensor,
     ):
         ys_in_pad, ys_out_pad = add_sos_eos(ys_pad, self.sos, self.eos, self.ignore_id)
         ys_in_lens = ys_pad_lens + 1
@@ -329,7 +328,7 @@ class ESPnetASRModel(AbsESPnetModel):
         # 3. Compute mwer loss
         decoder_out_nbest = decoder_out[batch_size:]
         ys_out_pad_nbest = ys_out_pad[batch_size:]
-        loss_mwer = self._mwer_loss(decoder_out_nbest, ys_out_pad_nbest, ys_out_pad_true, hyp_scores)
+        loss_mwer = self._mwer_loss(decoder_out_nbest, ys_out_pad_nbest, ys_out_pad_true)
         
         loss = self.mwer_weight * loss_mwer + (1 - self.mwer_weight) * loss_ce
         
@@ -499,7 +498,6 @@ class ESPnetASRModel(AbsESPnetModel):
         decoder_output_nbest: torch.Tensor,
         ys_out_pad_nbest: torch.Tensor,
         label: torch.Tensor,
-        hyp_scores: torch.Tensor,
     ):
         """
         Args:
@@ -516,9 +514,8 @@ class ESPnetASRModel(AbsESPnetModel):
         select = torch.gather(decoder_output_nbest, -1, ys_nbest_index.unsqueeze(-1)).squeeze(-1).masked_fill(ignore != 0, 0)
         scores = torch.sum(select, dim=-1)
         # TODO(wangzhichao):use score in beam-search
-        hyp_scores = torch.nn.functional.softmax(hyp_scores, dim=1)
-        loss = torch.nn.functional.softmax(scores * hyp_scores, dim=1)
-    
+        loss = torch.nn.functional.softmax(scores, dim=1)
+
         # Compoute batch cer
         ys_out_pad_nbest = ys_out_pad_nbest.contiguous().view(batch_size, self.nbest, -1)
         label_host = label.cpu().numpy().reshape(batch_size, -1)

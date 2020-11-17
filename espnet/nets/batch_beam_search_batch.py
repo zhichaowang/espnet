@@ -330,10 +330,10 @@ class BatchBeamSearchBatch(BeamSearch):
         else:
             maxlen = max(1, int(maxlenratio * max(ilens)))
         minlen = int(minlenratio * maxlen)
-        logging.info(f"decoder input length: {ilens}")
-        logging.info("max output length: " + str(maxlen))
-        logging.info("min output length: " + str(minlen))
-        logging.info("output lengths:" + str(ilens))
+###        logging.info(f"decoder input length: {ilens}")
+###        logging.info("max output length: " + str(maxlen))
+###        logging.info("min output length: " + str(minlen))
+###        logging.info("output lengths:" + str(ilens))
         
         # expand x to exp_x: (Batch*beam, T, D)
         exp_x = x.unsqueeze(1).repeat(1, self.beam_size, 1, 1).contiguous()
@@ -355,12 +355,12 @@ class BatchBeamSearchBatch(BeamSearch):
             # end detection
             for utt_i in range(batch_size):
                 if maxlenratio == 0.0 and end_detect([h.asdict() for h in ended_hyps[utt_i]], i):
-                    logging.info(f"end detected at {i} in utterance {utt_i}")
+###                    logging.info(f"end detected at {i} in utterance {utt_i}")
                     stop_search[utt_i] = True
                     end_ids = [ids for ids in range(utt_i * self.beam_size, (utt_i + 1) * self.beam_size)]
                     running_hyps = self._batch_reset(running_hyps, end_ids)
             if running_hyps.length.sum() == 0:
-                logging.info("no hypothesis. Finish decoding.")
+###                logging.info("no hypothesis. Finish decoding.")
                 break
             else:
                 logging.debug(f"remained hypotheses: {len(torch.nonzero(running_hyps.length).view(-1))}")
@@ -379,21 +379,21 @@ class BatchBeamSearchBatch(BeamSearch):
                 else self.forward(x, maxlenratio, max(0.0, minlenratio - 0.1))
             )
         # report the best result
-        for utt_i in range(batch_size):
-            best = nbest_hyps[utt_i][0]
-            for k, v in best.scores.items():
-                logging.info(
-                    f"{v:6.2f} * {self.weights[k]:3} = {v * self.weights[k]:6.2f} for {k}"
-                )
-            logging.info(f"total log probability: {best.score:.2f}")
-            logging.info(f"normalized log probability: {best.score / len(best.yseq):.2f}")
-            logging.info(f"total number of ended hypotheses: {len(nbest_hyps)}")
-            if self.token_list is not None:
-                logging.info(
-                    "best hypo: "
-                    + "".join([self.token_list[x] for x in best.yseq[1:-1]])
-                    + "\n"
-                )
+###        for utt_i in range(batch_size):
+###            best = nbest_hyps[utt_i][0]
+###            for k, v in best.scores.items():
+###                logging.info(
+###                    f"{v:6.2f} * {self.weights[k]:3} = {v * self.weights[k]:6.2f} for {k}"
+###                )
+###            logging.info(f"total log probability: {best.score:.2f}")
+###            logging.info(f"normalized log probability: {best.score / len(best.yseq):.2f}")
+###            logging.info(f"total number of ended hypotheses: {len(nbest_hyps)}")
+###            if self.token_list is not None:
+###                logging.info(
+###                    "best hypo: "
+###                    + "".join([self.token_list[x] for x in best.yseq[1:-1]])
+###                    + "\n"
+###                )
         return nbest_hyps
 
 
@@ -442,7 +442,7 @@ class BatchBeamSearchBatch(BeamSearch):
                 continue
             if i == ilens[utt_i] - 1:
                 stop_search[utt_i] = True
-                logging.info(f"adding <eos> in the last position in th loop for utterance: ilens[utt_i]")
+###                logging.info(f"adding <eos> in the last position in th loop for utterance: ilens[utt_i]")
                 # add ended hypotheses to a final list
                 for beam_j in range(self.beam_size):
                     ended_hyps[utt_i].append(
