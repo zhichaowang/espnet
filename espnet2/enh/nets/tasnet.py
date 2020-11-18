@@ -166,7 +166,7 @@ class TasNet(AbsEnhancement):
             ilens (torch.Tensor): input lengths [Batch]
 
         Returns:
-            est_source: [M, C, T]
+            est_source: List[M, T]
             lens:  [Batch]
         """
         mixture_w = self.encoder(mixture)

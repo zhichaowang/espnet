@@ -115,7 +115,7 @@ decode_joint_model=valid.acc.ave.pth        # ASR model path for decoding.
 
 # [Task dependent] Set the datadir name created by local/data.sh
 train_set=       # Name of training set.
-train_aux_set=  # Name of auxiliary training set. (Single Speaker)
+train_aux_set=   # Name of auxiliary training set. (Single Speaker)
 valid_set=       # Name of validation set used for monitoring/tuning network training
 test_sets=       # Names of test sets. Multiple items (e.g., both dev and eval sets) can be specified.
 enh_speech_fold_length=800 # fold_length for speech data during enhancement training
@@ -347,6 +347,9 @@ joint_stats_dir="${expdir}/joint_stats_${feats_type}_${fs}"
 if [ -n "${speed_perturb_factors}" ]; then
     joint_stats_dir="${joint_stats_dir}_sp"
 fi
+if [ ! -z "${train_aux_set}" ]; then
+    joint_stats_dir="${joint_stats_dir}_aux"
+fi
 lm_stats_dir="${expdir}/lm_stats"
 
 # The directory used for training commands
@@ -355,6 +358,9 @@ if [ -z "${joint_exp}" ]; then
 fi
 if [ -n "${speed_perturb_factors}" ]; then
     joint_exp="${joint_exp}_sp"
+fi
+if [ ! -z "${train_aux_set}" ]; then
+    joint_exp="${joint_exp}_aux"
 fi
 if [ -z "${lm_exp}" ]; then
     lm_exp="${expdir}/lm_${lm_tag}"
@@ -563,10 +569,13 @@ if ! "${skip_data_prep}"; then
                 done
             done
             cp ${data_feats}/${dset}/feats_type ${data_feats}/${combined_train_set}/feats_type
-            train_set=${combined_train_set}
         else
             log "Train set is the same as aux sets."
         fi
+    fi
+
+    if [ ! -z "${train_aux_set}" ]; then
+        train_set=${train_set}"_"${train_aux_set}
     fi
 
     if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
