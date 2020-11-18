@@ -22,8 +22,6 @@ ALL_LOSS_TYPES = (
     "spectrum",
     # si_snr(enhanced_waveform, target_waveform)
     "si_snr",
-    # no looss
-    None,
 )
 
 
@@ -31,7 +29,9 @@ class ESPnetEnhancementModel(AbsESPnetModel):
     """Speech enhancement or separation Frontend model"""
 
     def __init__(
-        self, enh_model: Optional[AbsEnhancement],
+        self,
+        enh_model: Optional[AbsEnhancement],
+        stft_consistency: bool = False,
     ):
         assert check_argument_types()
 
@@ -40,10 +40,14 @@ class ESPnetEnhancementModel(AbsESPnetModel):
         self.enh_model = enh_model
         self.num_spk = enh_model.num_spk
         self.num_noise_type = getattr(self.enh_model, "num_noise_type", 1)
-        # get mask type for TF-domain models
+
+        # get mask type for TF-domain models (only used when loss_type="mask_*")
         self.mask_type = getattr(self.enh_model, "mask_type", None)
         # get loss type for model training
         self.loss_type = getattr(self.enh_model, "loss_type", None)
+        # whether to compute the TF-domain loss while enforcing STFT consistency
+        self.stft_consistency = stft_consistency
+
         assert self.loss_type in ALL_LOSS_TYPES, self.loss_type
         # for multi-channel signal
         self.ref_channel = getattr(self.enh_model, "ref_channel", -1)
@@ -258,9 +262,25 @@ class ESPnetEnhancementModel(AbsESPnetModel):
             spectrum_mix = ComplexTensor(spectrum_mix[..., 0], spectrum_mix[..., 1])
 
             # predict separated speech and masks
-            spectrum_pre, tf_length, mask_pre = self.enh_model(
-                speech_mix, speech_lengths
-            )
+            if self.stft_consistency:
+                # pseudo STFT -> time-domain -> STFT (compute loss)
+                speech_pre, speech_lengths, mask_pre = self.enh_model.forward_rawwav(
+                    speech_mix, speech_lengths
+                )
+                if speech_pre is not None:
+                    spectrum_pre = []
+                    for sp in speech_pre:
+                        spec_pre, tf_length = self.enh_model.stft(sp, speech_lengths)
+                        spectrum_pre.append(spec_pre)
+                else:
+                    spectrum_pre = None
+                    _, tf_length = self.enh_model.stft(speech_mix, speech_lengths)
+            else:
+                # compute loss on pseudo STFT directly
+                spectrum_pre, tf_length, mask_pre = self.enh_model(
+                    speech_mix, speech_lengths
+                )
+
             if spectrum_pre is not None and not isinstance(
                 spectrum_pre[0], ComplexTensor
             ):
@@ -284,7 +304,7 @@ class ESPnetEnhancementModel(AbsESPnetModel):
             if self.loss_type == "magnitude":
                 # compute loss on magnitude spectrum
                 assert spectrum_pre is not None
-                magnitude_pre = [abs(ps) for ps in spectrum_pre]
+                magnitude_pre = [abs(ps + 1e-15) for ps in spectrum_pre]
                 if spectrum_ref[0].dim() > magnitude_pre[0].dim():
                     # only select one channel as the reference
                     magnitude_ref = [
@@ -421,10 +441,15 @@ class ESPnetEnhancementModel(AbsESPnetModel):
             loss: (Batch,)
         """
         assert ref.shape == inf.shape, (ref.shape, inf.shape)
+        diff = ref - inf
+        if isinstance(diff, ComplexTensor):
+            mseloss = diff.real ** 2 + diff.imag ** 2
+        else:
+            mseloss = diff ** 2
         if ref.dim() == 3:
-            mseloss = (abs(ref - inf) ** 2).mean(dim=[1, 2])
+            mseloss = mseloss.mean(dim=[1, 2])
         elif ref.dim() == 4:
-            mseloss = (abs(ref - inf) ** 2).mean(dim=[1, 2, 3])
+            mseloss = mseloss.mean(dim=[1, 2, 3])
         else:
             raise ValueError(
                 "Invalid input shape: ref={}, inf={}".format(ref.shape, inf.shape)
@@ -443,10 +468,14 @@ class ESPnetEnhancementModel(AbsESPnetModel):
             loss: (Batch,)
         """
         assert ref.shape == inf.shape, (ref.shape, inf.shape)
+        if isinstance(inf, ComplexTensor):
+            l1loss = abs(ref - inf + 1e-15)
+        else:
+            l1loss = abs(ref - inf)
         if ref.dim() == 3:
-            l1loss = abs(ref - inf).mean(dim=[1, 2])
+            l1loss = l1loss.mean(dim=[1, 2])
         elif ref.dim() == 4:
-            l1loss = abs(ref - inf).mean(dim=[1, 2, 3])
+            l1loss = l1loss.mean(dim=[1, 2, 3])
         else:
             raise ValueError(
                 "Invalid input shape: ref={}, inf={}".format(ref.shape, inf.shape)

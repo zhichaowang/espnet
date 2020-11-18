@@ -68,7 +68,7 @@ class TFMaskingNet(AbsEnhancement):
         self.mask_type = mask_type
         self.loss_type = loss_type
         self.return_spec_in_training = False
-        if loss_type not in ("mask_mse", "magnitude", "spectrum"):
+        if loss_type not in ("mask_mse", "magnitude", "spectrum", "si_snr"):
             raise ValueError("Unsupported loss type: %s" % loss_type)
         self.rnn_type = rnn_type
 
@@ -247,8 +247,5 @@ class TFMaskingNet(AbsEnhancement):
             predicted_wavs = [
                 self.stft.inverse(ps, ilens)[0] for ps in predicted_spectrums
             ]
-        else:
-            # single-speaker input
-            predicted_wavs = self.stft.inverse(predicted_spectrums, ilens)[0]
 
         return predicted_wavs, ilens, masks

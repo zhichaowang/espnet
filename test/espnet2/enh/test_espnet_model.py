@@ -14,8 +14,9 @@ from test.espnet2.enh.layers.test_enh_layers import random_speech
 @pytest.mark.parametrize("loss_type", ["mask_mse", "magnitude", "spectrum"])
 @pytest.mark.parametrize("num_spk", [1, 2, 3])
 @pytest.mark.parametrize("use_noise_mask", [True, False])
+@pytest.mark.parametrize("stft_consistency", [True, False])
 def test_forward_with_beamformer_net(
-    training, mask_type, loss_type, num_spk, use_noise_mask
+    training, mask_type, loss_type, num_spk, use_noise_mask, stft_consistency
 ):
     # Skip some testing cases
     if not loss_type.startswith("mask") and mask_type != "IBM":
@@ -49,7 +50,7 @@ def test_forward_with_beamformer_net(
         use_noise_mask=use_noise_mask,
         beamformer_type="mvdr_souden",
     )
-    enh_model = ESPnetEnhancementModel(model)
+    enh_model = ESPnetEnhancementModel(model, stft_consistency=stft_consistency)
     if training:
         enh_model.train()
     else:
