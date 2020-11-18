@@ -229,8 +229,13 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                     )
                     n_speaker_asr = self.num_spk
                 else:  # single-speaker case
+                    assert isinstance(speech_pre[0], ComplexTensor)
+                    speech_pre = [
+                        torch.stack([pre.real, pre.imag], dim=-1)
+                        for pre in speech_pre
+                    ]
                     speech_pre_all, speech_pre_lengths = (
-                        speech_pre,
+                        speech_pre[0],
                         speech_pre_lengths,
                     )
                     text_ref_all, text_ref_lengths = text_ref1, text_ref1_lengths
