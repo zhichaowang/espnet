@@ -157,23 +157,23 @@ class ESPnetEnhASRModel(AbsESPnetModel):
 
         # 0. Enhancement
         if self.enh_return_type is not None:
-            # make sure the speech_pre is the raw waveform with same size.
-            if text_ref1.equal(text_ref2):
-                # TODO(Jing): find a better way to locate single-spk set
-                # single-speaker case
-                speech_pre_all, speech_pre_lengths = speech_mix, speech_mix_lengths
-                text_ref_all, text_ref_lengths = text_ref1, text_ref1_lengths
-                perm = True
-                loss_enh = 0 * speech_mix.mean()
-                n_speaker_asr = 1
-            else:
-                loss_enh, perm, speech_pre, speech_pre_lengths = self.forward_enh(
-                    speech_mix,
-                    speech_mix_lengths,
-                    speech_ref1=speech_ref1,
-                    speech_ref2=speech_ref2,
-                )
-                if self.enh_return_type == "waveform":
+            if self.enh_return_type == "waveform":
+                # make sure the speech_pre is the raw waveform with same size.
+                if text_ref1.equal(text_ref2): #single-spk case
+                    # TODO(Jing): find a better way to locate single-spk set
+                    # single-speaker case
+                    speech_pre_all, speech_pre_lengths = speech_mix, speech_mix_lengths
+                    text_ref_all, text_ref_lengths = text_ref1, text_ref1_lengths
+                    perm = True
+                    loss_enh = None
+                    n_speaker_asr = 1
+                else:
+                    loss_enh, perm, speech_pre, speech_pre_lengths = self.forward_enh(
+                        speech_mix,
+                        speech_mix_lengths,
+                        speech_ref1=speech_ref1,
+                        speech_ref2=speech_ref2,
+                    )
                     # speech_pre: (bs,num_spk,T)
                     assert speech_pre[:, 0].shape == speech_mix.shape
 
@@ -197,41 +197,46 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                         [text_ref1_lengths, text_ref2_lengths], dim=1
                     ).view(-1)
                     n_speaker_asr = 1
-                elif self.enh_return_type == "spectrum":
-                    # TODO: if len(speech_pre) == 1
-                    if isinstance(speech_pre, list):  # multi-speaker case
-                        # The return value speech_pre is actually the spectrum
-                        # List[torch.Tensor(B, T, D, 2)] or List[torch.complex(B, T, D)]
-                        if speech_pre[0].dtype == torch.tensor:
-                            assert (
-                                speech_pre[0].dim >= 4 and speech_pre[0].size(-1) == 2
-                            )
-                        elif isinstance(speech_pre[0], ComplexTensor):
-                            speech_pre = [
-                                torch.stack([pre.real, pre.imag], dim=-1)
-                                for pre in speech_pre
-                            ]
-                            assert (
-                                speech_pre[0].dim() >= 4 and speech_pre[0].size(-1) == 2
-                            )
-                        speech_pre_all = torch.cat(speech_pre, dim=0)  # (N_spk*B, T, D)
-                        speech_pre_lengths = torch.cat(
-                            [speech_pre_lengths, speech_pre_lengths]
+            elif self.enh_return_type == "spectrum":
+                loss_enh, perm, speech_pre, speech_pre_lengths = self.forward_enh(
+                    speech_mix,
+                    speech_mix_lengths,
+                    speech_ref1=speech_ref1,
+                    speech_ref2=speech_ref2,
+                )
+                if len(speech_pre) > 1:  # multi-speaker case
+                    # The return value speech_pre is actually the spectrum
+                    # List[torch.Tensor(B, T, D, 2)] or List[torch.complex(B, T, D)]
+                    if speech_pre[0].dtype == torch.tensor:
+                        assert (
+                            speech_pre[0].dim >= 4 and speech_pre[0].size(-1) == 2
                         )
-                        text_ref_all = torch.cat([text_ref1, text_ref2], dim=0)
-                        text_ref_lengths = torch.cat(
-                            [text_ref1_lengths, text_ref2_lengths]
+                    elif isinstance(speech_pre[0], ComplexTensor):
+                        speech_pre = [
+                            torch.stack([pre.real, pre.imag], dim=-1)
+                            for pre in speech_pre
+                        ]
+                        assert (
+                            speech_pre[0].dim() >= 4 and speech_pre[0].size(-1) == 2
                         )
-                        n_speaker_asr = self.num_spk
-                    else:  # single-speaker case
-                        speech_pre_all, speech_pre_lengths = (
-                            speech_pre,
-                            speech_pre_lengths,
-                        )
-                        text_ref_all, text_ref_lengths = text_ref1, text_ref1_lengths
-                        n_speaker_asr = 1  # single-channel asr after enh
-                else:
-                    raise NotImplementedError("No such enh_return_type")
+                    speech_pre_all = torch.cat(speech_pre, dim=0)  # (N_spk*B, T, D)
+                    speech_pre_lengths = torch.cat(
+                        [speech_pre_lengths, speech_pre_lengths]
+                    )
+                    text_ref_all = torch.cat([text_ref1, text_ref2], dim=0)
+                    text_ref_lengths = torch.cat(
+                        [text_ref1_lengths, text_ref2_lengths]
+                    )
+                    n_speaker_asr = self.num_spk
+                else:  # single-speaker case
+                    speech_pre_all, speech_pre_lengths = (
+                        speech_pre,
+                        speech_pre_lengths,
+                    )
+                    text_ref_all, text_ref_lengths = text_ref1, text_ref1_lengths
+                    n_speaker_asr = 1  # single-channel asr after enh
+            else:
+                raise NotImplementedError("No such enh_return_type")
         else:
             # Dont do enhancement
             speech_pre_all = speech_mix  # bs,T
