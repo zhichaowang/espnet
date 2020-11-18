@@ -22,8 +22,6 @@ ALL_LOSS_TYPES = (
     "spectrum",
     # si_snr(enhanced_waveform, target_waveform)
     "si_snr",
-    # no looss
-    None,
 )
 
 
@@ -269,7 +267,13 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                 speech_pre, speech_lengths, mask_pre = self.enh_model.forward_rawwav(
                     speech_mix, speech_lengths
                 )
-                spectrum_pre, tf_length = self.enh_model.stft(input, speech_lengths)
+                if speech_pre is not None:
+                    spectrum_pre = []
+                    for sp in speech_pre:
+                        spec_pre, tf_length = self.enh_model.stft(sp, speech_lengths)
+                        spectrum_pre.append(spec_pre)
+                else:
+                    spectrum_pre = None
             else:
                 # compute loss on pseudo STFT directly
                 spectrum_pre, tf_length, mask_pre = self.enh_model(
