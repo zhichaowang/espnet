@@ -34,6 +34,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         enh_return_type: Union[str, None] = "waveform",
         cal_enh_loss: bool = True,
         end2end_train: bool = True,
+        additional_utt_mvn: bool = False,
     ):
         assert check_argument_types()
         assert 0.0 <= asr_model.ctc_weight <= 1.0, asr_model.ctc_weight
@@ -64,13 +65,16 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                 self.asr_subclass.frontend.stft
             ), "need apply stft in asr frontend part"
         elif enh_return_type == "spectrum":
-            # TODO(Xuankai,Jing): verify this additional uttMVN
-            self.asr_subclass.additional_utt_mvn = UtteranceMVN(
-                norm_means=True, norm_vars=False
-            )
             assert (
                 not self.asr_subclass.frontend.stft
             ), "avoid usage of stft in asr frontend part"
+            # TODO(Xuankai,Jing): verify this additional uttMVN
+            if additional_utt_mvn:
+                self.asr_subclass.additional_utt_mvn = UtteranceMVN(
+                    norm_means=True, norm_vars=False
+                )
+            else:
+                self.asr_subclass.additional_utt_mvn = None
 
         # self.end2end_train = False
         self.end2end_train = end2end_train
@@ -194,6 +198,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                     ).view(-1)
                     n_speaker_asr = 1
                 elif self.enh_return_type == "spectrum":
+                    # TODO: if len(speech_pre) == 1
                     if isinstance(speech_pre, list):  # multi-speaker case
                         # The return value speech_pre is actually the spectrum
                         # List[torch.Tensor(B, T, D, 2)] or List[torch.complex(B, T, D)]

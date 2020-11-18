@@ -1,6 +1,5 @@
 optim: adam
-#init: xavier_uniform
-init: none
+init: xavier_uniform
 log_interval: 20
 max_epoch: 200
 batch_type: folded
