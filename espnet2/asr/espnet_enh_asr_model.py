@@ -183,10 +183,9 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                         speech_pre = torch.stack([speech_ref1, speech_ref2], dim=1)
 
                     # Pack the separated speakers into the ASR part.
-                    # TODO(Jing): unified order bs*spk or spk*bs
-                    speech_pre_all = speech_pre.view(
+                    speech_pre_all = speech_pre.transpose(0,1).contiguous().view(
                         -1, speech_mix.shape[-1]
-                    )  # (bs*num_spk, T)
+                    )  # (N_spk*B, T)
                     speech_pre_lengths = torch.stack(
                         [speech_mix_lengths, speech_mix_lengths], dim=1
                     ).view(-1)
@@ -196,7 +195,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                     text_ref_lengths = torch.stack(
                         [text_ref1_lengths, text_ref2_lengths], dim=1
                     ).view(-1)
-                    n_speaker_asr = 1
+                    n_speaker_asr = 1 if self.cal_enh_loss else self.num_spk
             elif self.enh_return_type == "spectrum":
                 loss_enh, perm, speech_pre, speech_pre_lengths = self.forward_enh(
                     speech_mix,
@@ -227,7 +226,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                     text_ref_lengths = torch.cat(
                         [text_ref1_lengths, text_ref2_lengths]
                     )
-                    n_speaker_asr = self.num_spk
+                    n_speaker_asr = 1 if self.cal_enh_loss else self.num_spk
                 else:  # single-speaker case
                     assert isinstance(speech_pre[0], ComplexTensor)
                     speech_pre = [
@@ -277,6 +276,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                     n_speakers=n_speaker_asr,
                 )
             else:  # Permutation is determined by CTC
+                assert n_speaker_asr > 1
                 (
                     loss_ctc,
                     cer_ctc,
