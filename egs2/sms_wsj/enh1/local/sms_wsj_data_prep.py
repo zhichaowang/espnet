@@ -6,6 +6,8 @@ import argparse
 import json
 import os
 
+import humanfriendly
+
 from espnet2.fileio.datadir_writer import DatadirWriter
 from espnet2.utils.types import str2bool
 
@@ -21,15 +23,18 @@ def create_data_dir(args, exist_ok=False):
 
     In each subset directory, the following files will be created:
         [subset]
-          |-- wav.scp
-          |-- utt2spk
-          |-- spk1.scp
-          |-- spk2.scp
-          |-- noise1.scp
           |-- dereverb1.scp
           |-- dereverb2.scp
+          |-- noise1.scp
           |-- rir1.scp (not used yet)
           |-- rir2.scp (not used yet)
+          |-- spk1.scp
+          |-- spk2.scp
+          |-- text_spk1
+          |-- text_spk2
+          |-- utt2dur
+          |-- utt2spk
+          |-- wav.scp
 
     Args:
         args.min_or_max: min or max version of speech mixture
@@ -66,7 +71,8 @@ def create_data_dir(args, exist_ok=False):
                     "speech_reverberation_early": ["early1_path", "early2_path"],
                     "speech_reverberation_tail": ["tail1_path", "tail2_path"],
                     "noise_image": "noise_path",
-                    "observation": "mixture_path"
+                    "observation": "mixture_path",
+                    "speech_image": ["src1_image_path", "src2_image_path"]
                   },
                   "snr": snr
                 },
@@ -85,31 +91,42 @@ def create_data_dir(args, exist_ok=False):
     with open(args.sms_wsj_json, "r") as f:
         datasets = json.load(f)["datasets"]
 
+    sample_rate = humanfriendly.parse_size(args.sample_rate)
     for subset in datasets:
         subset_dir = os.path.join(args.dist_dir, subset)
         os.makedirs(subset_dir, exist_ok=exist_ok)
+        sorted_keys = sorted(datasets[subset].keys())
         with DatadirWriter(subset_dir) as writer:
-            for uid, info in datasets[subset].items():
+            for uid in sorted_keys:
+                info = datasets[subset][uid]
+                paths = info["audio_path"]
                 assert info["num_speakers"] == 2, (uid, info["num_speakers"])
                 # uid: index_src1id_src2id
                 spkid = "_".join(info["speaker_id"])
+                # uttid: spk1id_spk2id_index_src1id_src2id
                 uttid = spkid + "_" + uid
-                writer["wav.scp"][uttid] = info["audio_path"]["observation"]
+                writer["wav.scp"][uttid] = paths["observation"]
                 writer["utt2spk"][uttid] = spkid
-                writer["noise1.scp"][uttid] = info["audio_path"]["noise_image"]
+                writer["noise1.scp"][uttid] = paths["noise_image"]
+                if isinstance(info['num_samples'], dict):
+                    num_samples = info['num_samples']['observation']
+                else:
+                    num_samples = info['num_samples']
+                writer["utt2dur"][uttid] = f"{num_samples / sample_rate:.2f}"
                 for spk in range(info["num_speakers"]):
                     if args.use_reverb_reference:
-                        writer[f"spk{spk+1}.scp"][uttid] = info["audio_path"]["reverb_source"][spk]
+                        writer[f"spk{spk+1}.scp"][uttid] = paths["speech_image"][spk]
                     else:
-                        writer[f"spk{spk+1}.scp"][uttid] = info["audio_path"]["source_signal"][spk]
-                    writer[f"rir{spk+1}.scp"][uttid] = info["audio_path"]["rir"]
-                    writer[f"dereverb{spk+1}.scp"][uttid] = info["audio_path"][
+                        writer[f"spk{spk+1}.scp"][uttid] = paths["speech_source"][spk]
+                    writer[f"rir{spk+1}.scp"][uttid] = paths["rir"][spk]
+                    writer[f"dereverb{spk+1}.scp"][uttid] = paths[
                         "speech_reverberation_early"
                     ][spk]
-                writer["wav.scp"][uttid] = info["audio_path"]["observation"]
+                    writer[f"text_spk{spk+1}"][uttid] = info["kaldi_transcription"][spk]
 
 
 def get_parser():
+    """Argument parser."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "sms_wsj_json", type=str, help="Path to the generated sms_wsj.json"

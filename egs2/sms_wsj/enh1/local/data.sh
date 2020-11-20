@@ -21,6 +21,9 @@ log() {
 
 nj=16
 sample_rate=8k
+
+# True to use reverberated sources in spk?.scp
+# False to use original source signals (padded) in spk?.scp
 use_reverb_reference=false
 download_rir=true
 
@@ -31,6 +34,7 @@ download_rir=true
 
 sms_wsj_wav=$PWD/data/sms_wsj
 wsj_zeromean_wav=${sms_wsj_wav}/wsj_${sample_rate}_zeromean
+local_dir=$PWD/local
 sms_wsj_scripts=$PWD/local/sms_wsj
 other_text=data/local/other_text/text
 nlsyms=data/nlsyms.txt
@@ -48,6 +52,11 @@ fi
 if [[ ! -d ${sms_wsj_scripts} ]]; then
     log "Cloning and installing SMS-WSJ repository"
     git clone https://github.com/fgnt/sms_wsj.git ${sms_wsj_scripts}
+    (
+        cd ${sms_wsj_scripts}
+        git checkout f0cc4402a7111cd603c617a21170b0e0ddb90d48
+        git apply ${local_dir}/write_additional_data.patch
+    )
     # Note: MPI pre-installation is required here.
     python -m pip install -e ${sms_wsj_scripts}
     if ! ${download_rir}; then
@@ -63,18 +72,28 @@ local/create_database.sh \
     ${WSJ0} ${WSJ1} ${wsj_zeromean_wav} ${sms_wsj_wav} || exit 1;
 
 # The following datasets will be created:
-# {tr,cv,tt}_mix_{both,clean,single}_{anechoic,reverb}_${min_or_max}_${sample_rate}
-#
-# Note:
-#   - `both`: a mixture of speech1, speech2 and noise (for speech separation)
-#   - `clean`: a mixture of speech1 and speech2 (for speech separation)
-#   - `single`: a mixture of speech1 and noise (for speech enhancement)
+#  - train_si284: 33561 samples
+#  - cv_dev93: 982 samples
+#  - test_eval92: 1332 samples
+# The data files are generated based on the sms_wsj.json file,
+# and the utterance ids are slightly modified based those in sms_wsj.json. 
 python local/sms_wsj_data_prep.py \
     --sample-rate ${sample_rate} \
     --use-reverb-reference ${use_reverb_reference} \
     --dist-dir data \
     ${sms_wsj_wav}/sms_wsj.json || exit 1;
 
+for subset in train_si284 cv_dev93 test_eval92; do
+    for f in dereverb1.scp dereverb2.scp noise1.scp rir1.scp rir2.scp \
+             spk1.scp spk2.scp text_spk1 text_spk2 utt2dur utt2spk wav.scp; do
+        mv data/${subset}/${f} data/${subset}/.${f}
+        sort data/${subset}/.${f} > data/${subset}/${f}
+        rm data/${subset}/.${f}
+    done
+    # all speaker ids are unique
+    # see https://github.com/fgnt/sms_wsj/blob/master/sms_wsj/database/create_intermediate_json.py#L203
+    utils/spk2utt_to_utt2spk.pl data/${subset}/utt2spk > data/${subset}/spk2utt
+done
 
 ### Also need wsj corpus to prepare language information
 ### This is from Kaldi WSJ recipe

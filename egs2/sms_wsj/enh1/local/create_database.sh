@@ -20,11 +20,11 @@ if [[ "$min_or_max" != "max" ]]; then
   exit 1
 fi
 if [[ "$sample_rate" == "16k" ]]; then
-  sample_rate=16000
+  sample_rate2=16000
   echo "Warning: sample_rate=16k is not officially supported yet."
   exit 1
 elif [[ "$sample_rate" == "8k" ]]; then
-  sample_rate=8000
+  sample_rate2=8000
 else
   echo "Error: sample rate must be either 16k or 8k: ${sample_rate}"
   exit 1
@@ -85,7 +85,7 @@ if [[ ! -d ${wsj_zeromean_wav} ]]; then
   echo "Creating zero-mean normalized wsj at '${wsj_zeromean_wav}'."
   mpiexec -np ${nj} python -m sms_wsj.database.wsj.write_wav \
       with dst_dir=${wsj_zeromean_wav} wsj0_root=${wsj0_path} \
-      wsj1_root=${wsj1_path} sample_rate=${sample_rate}
+      wsj1_root=${wsj1_path} sample_rate=${sample_rate2}
 fi
 
 
@@ -130,7 +130,7 @@ if [[ ! -f ${json_dir}/intermediate_sms_wsj.json ]]; then
 fi
 
 
-# This takes about 15 minutes with nj=16.
+# This takes about 25 minutes with nj=16.
 echo "Creating ${sms_wsj_wav} audio data in '${sms_wsj_wav}'"
 mpiexec -np ${nj} python -m sms_wsj.database.write_files \
   with dst_dir=${sms_wsj_wav} json_path=${json_dir}/intermediate_sms_wsj.json \
@@ -145,17 +145,20 @@ if [[ ! -f ${json_dir}/sms_wsj.json ]]; then
 fi
 
 
-# The total disk usage of SMS-WSJ is 442.1 GiB.
+# The total disk usage of SMS-WSJ is 442.1 GiB + 240.2 GiB = 682.3 GiB.
+# This number may be larger than the officially reported one, because we write
+#  all intermediate files (see [additional data] below) to the disk.
+# --------------------------------------------------------------------------------
 # directory/file  disk usage  #channels   #samples
 # --------------------------------------------------------------------------------
 # tail	          120.1 GiB   6           35875 * 2 (only when write_all=True)
 # early	          120.1 GiB   6           35875 * 2 (only when write_all=True)
 # observation	    60.0 GiB    6           35875
 # noise	          60.0 GiB    6           35875
+# --------------------------- [additional data] ----------------------------------
+# source_signal   120.1 GiB   6           35875 * 2
+# reverb_source   120.1 GiB   6           35875 * 2
 # --------------------------------------------------------------------------------
 # rirs	          52.6 GiB    6           143500=(33561+982+1332)*4 (up to 4 srcs)
 # wsj_8k_zeromean	29.2 GiB    1           131824
-# --------------------------------------------------------------------------------
-# sms_wsj.json	  1397 MiB                -
-# wsj_8k.json	    316 MiB                 -
 # --------------------------------------------------------------------------------
