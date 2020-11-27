@@ -66,12 +66,13 @@ def create_data_dir(args, exist_ok=False):
                   },
                   "offset": [start_idx, 0],
                   "audio_path": {
-                    "speech_source": ["src1_path", "src2_path"],
+                    "original_source": ["org_src1_path", "org_src2_path"],
                     "rir": ["rir1_path", "rir2_path"],
                     "speech_reverberation_early": ["early1_path", "early2_path"],
                     "speech_reverberation_tail": ["tail1_path", "tail2_path"],
                     "noise_image": "noise_path",
                     "observation": "mixture_path",
+                    "speech_source": ["src1_path", "src2_path"],
                     "speech_image": ["src1_image_path", "src2_image_path"]
                   },
                   "snr": snr
@@ -108,10 +109,10 @@ def create_data_dir(args, exist_ok=False):
                 writer["wav.scp"][uttid] = paths["observation"]
                 writer["utt2spk"][uttid] = spkid
                 writer["noise1.scp"][uttid] = paths["noise_image"]
-                if isinstance(info['num_samples'], dict):
-                    num_samples = info['num_samples']['observation']
+                if isinstance(info["num_samples"], dict):
+                    num_samples = info["num_samples"]["observation"]
                 else:
-                    num_samples = info['num_samples']
+                    num_samples = info["num_samples"]
                 writer["utt2dur"][uttid] = f"{num_samples / sample_rate:.2f}"
                 for spk in range(info["num_speakers"]):
                     if args.use_reverb_reference:

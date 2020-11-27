@@ -43,3 +43,21 @@ config: conf/tuning/train_enh_specloss_with_stft_consistency.yaml
 |---|---|---|---|---|---|---|
 |enhanced_cv_min_8k|2.76346|0.878125|11.8188|10.6617|18.396|10.1284|
 |enhanced_tt_min_8k|2.74228|0.89146|11.6617|10.4938|18.2558|9.95787|
+
+## enh_train_enh_log_spec_loss_raw
+
+config: conf/tuning/train_enh_log_spec_loss.yaml
+
+|dataset|PESQ|STOI|SAR|SDR|SIR|SI_SNR|
+|---|---|---|---|---|---|---|
+|enhanced_cv_min_8k|2.85295|0.890628|12.2068|11.0524|18.5294|10.5286|
+|enhanced_tt_min_8k|2.8144|0.899293|12.0178|10.8431|18.4015|10.3146|
+
+## enh_train_enh_specloss_with_stft_consistency_raw
+
+config: conf/tuning/train_enh_log_specloss_with_stft_consistency.yaml
+
+|dataset|PESQ|STOI|SAR|SDR|SIR|SI_SNR|
+|---|---|---|---|---|---|---|
+|enhanced_cv_min_8k|2.86918|0.894122|12.4717|11.4266|19.4023|10.9147|
+|enhanced_tt_min_8k|2.84728|0.904743|12.3008|11.235|19.245|10.7236|

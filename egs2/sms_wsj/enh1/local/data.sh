@@ -24,7 +24,7 @@ sample_rate=8k
 
 # True to use reverberated sources in spk?.scp
 # False to use original source signals (padded) in spk?.scp
-use_reverb_reference=false
+use_reverb_reference=true
 download_rir=true
 
 . utils/parse_options.sh
@@ -72,9 +72,9 @@ local/create_database.sh \
     ${WSJ0} ${WSJ1} ${wsj_zeromean_wav} ${sms_wsj_wav} || exit 1;
 
 # The following datasets will be created:
-#  - train_si284: 33561 samples
-#  - cv_dev93: 982 samples
-#  - test_eval92: 1332 samples
+#  - train_si284: 33561 samples (87:22:26)
+#  - cv_dev93:    982 samples   (02:31:51)
+#  - test_eval92: 1332 samples  (03:21:23)
 # The data files are generated based on the sms_wsj.json file,
 # and the utterance ids are slightly modified based those in sms_wsj.json. 
 python local/sms_wsj_data_prep.py \
@@ -92,7 +92,8 @@ for subset in train_si284 cv_dev93 test_eval92; do
     done
     # all speaker ids are unique
     # see https://github.com/fgnt/sms_wsj/blob/master/sms_wsj/database/create_intermediate_json.py#L203
-    utils/spk2utt_to_utt2spk.pl data/${subset}/utt2spk > data/${subset}/spk2utt
+    utils/utt2spk_to_spk2utt.pl data/${subset}/utt2spk > data/${subset}/spk2utt
+    utils/validate_data_dir.sh --no-feats --no-text data/${subset}
 done
 
 ### Also need wsj corpus to prepare language information

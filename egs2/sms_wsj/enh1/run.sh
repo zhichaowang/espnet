@@ -5,15 +5,14 @@ set -e
 set -u
 set -o pipefail
 
-min_or_max=min # "min" or "max". This is to determine how the mixtures are generated in local/data.sh.
 sample_rate=8k
 nj=16
 
 
 
-train_set=tr_mix_single_reverb_min_8k
-valid_set=cv_mix_single_reverb_min_8k
-test_sets="tt_mix_single_reverb_min_8k"
+train_set=train_si284
+valid_set=cv_dev93
+test_sets="test_eval92"
 
 ./enh.sh \
     --train_set "${train_set}" \
@@ -22,8 +21,8 @@ test_sets="tt_mix_single_reverb_min_8k"
     --fs ${sample_rate} \
     --ngpu 2 \
     --spk_num 2 \
-    --local_data_opts "--sample_rate ${sample_rate} --min_or_max ${min_or_max} --nj ${nj}" \
-    --enh_config ./conf/tuning/train_enh_beamformer_mvdr.yaml \
+    --local_data_opts "--sample_rate ${sample_rate} --nj ${nj}" \
+    --enh_config ./conf/tuning/train_enh_beamformer_no_wpe.yaml \
     --use_dereverb_ref false \
     --use_noise_ref true \
     --inference_model "valid.loss.best.pth" \

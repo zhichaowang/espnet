@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from espnet2.enh.abs_enh import AbsEnhancement
 
-EPS = 1e-8
+EPS = torch.finfo(torch.get_default_dtype()).eps
 
 
 def overlap_and_add(signal, frame_step):
