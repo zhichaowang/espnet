@@ -11,7 +11,7 @@ sample_rate=8k
 
 train_set=tr_mix_both_min_8k
 valid_set=cv_mix_both_min_8k
-test_sets="t_mix_both_min_8k"
+test_sets="tt_mix_both_min_8k"
 
 ./enh.sh \
     --train_set "${train_set}" \

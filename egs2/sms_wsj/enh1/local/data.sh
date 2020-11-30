@@ -97,7 +97,7 @@ for subset in train_si284 cv_dev93 test_eval92; do
 done
 
 ### Also need wsj corpus to prepare language information
-### This is from Kaldi WSJ recipe
+### This is from Kaldi WSJ recipe (may take ~40 minutes)
 log "local/wsj_data_prep.sh ${WSJ0}/??-{?,??}.? ${WSJ1}/??-{?,??}.?"
 local/wsj_data_prep.sh ${WSJ0}/??-{?,??}.? ${WSJ1}/??-{?,??}.?
 log "local/wsj_format_data.sh"
@@ -106,6 +106,8 @@ log "mkdir -p data/wsj"
 mkdir -p data/wsj
 log "mv data/{dev_dt_*,local,test_dev*,test_eval*,train_si284} data/wsj"
 mv data/{dev_dt_*,local,test_dev*,test_eval*,train_si284} data/wsj
+# only for multi-condition training in ASR
+ln -s wsj/train_si284 data/wsj_train_si284
 
 
 log "Prepare text from lng_modl dir: ${WSJ1}/13-32.1/wsj1/doc/lng_modl/lm_train/np_data/{87,88,89}/*.z -> ${other_text}"

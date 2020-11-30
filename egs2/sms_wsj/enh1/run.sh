@@ -9,7 +9,6 @@ sample_rate=8k
 nj=16
 
 
-
 train_set=train_si284
 valid_set=cv_dev93
 test_sets="test_eval92"

@@ -205,6 +205,8 @@ Options:
     --dereverb_ref_num # Number of references for dereverberation (default="${dereverb_ref_num}")
 
     # Training data related
+    --use_signal_ref          # Whether or not to use signal references to compute signal-level losses
+                         (default="${use_signal_ref}")
     --use_signal_dereverb_ref # Whether or not to use dereverberated signal as an additional reference
                          for training a dereverberation model (default="${use_signal_dereverb_ref}")
     --use_signal_noise_ref    # Whether or not to use noise signal as an additional reference
