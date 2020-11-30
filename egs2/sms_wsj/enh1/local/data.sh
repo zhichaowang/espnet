@@ -90,9 +90,8 @@ for subset in train_si284 cv_dev93 test_eval92; do
         sort data/${subset}/.${f} > data/${subset}/${f}
         rm data/${subset}/.${f}
     done
-    # all speaker ids are unique
-    # see https://github.com/fgnt/sms_wsj/blob/master/sms_wsj/database/create_intermediate_json.py#L203
     utils/utt2spk_to_spk2utt.pl data/${subset}/utt2spk > data/${subset}/spk2utt
+    awk '{print($1, "reverb_6channels")}' data/${subset}/utt2spk > data/${subset}/utt2category
     utils/validate_data_dir.sh --no-feats --no-text data/${subset}
 done
 
@@ -100,14 +99,14 @@ done
 ### This is from Kaldi WSJ recipe (may take ~40 minutes)
 log "local/wsj_data_prep.sh ${WSJ0}/??-{?,??}.? ${WSJ1}/??-{?,??}.?"
 local/wsj_data_prep.sh ${WSJ0}/??-{?,??}.? ${WSJ1}/??-{?,??}.?
-log "local/wsj_format_data.sh"
-local/wsj_format_data.sh
 log "mkdir -p data/wsj"
 mkdir -p data/wsj
-log "mv data/{dev_dt_*,local,test_dev*,test_eval*,train_si284} data/wsj"
-mv data/{dev_dt_*,local,test_dev*,test_eval*,train_si284} data/wsj
+log "local/wsj_format_data.sh"
+local/wsj_format_data.sh --data_dir data/wsj
+mv data/local data/wsj
 # only for multi-condition training in ASR
 ln -s wsj/train_si284 data/wsj_train_si284
+awk '{print($1, "single_channel")}' data/wsj_train_si284/utt2spk > data/wsj_train_si284/utt2category
 
 
 log "Prepare text from lng_modl dir: ${WSJ1}/13-32.1/wsj1/doc/lng_modl/lm_train/np_data/{87,88,89}/*.z -> ${other_text}"

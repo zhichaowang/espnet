@@ -65,10 +65,6 @@ frontend_conf:
     hop_length: 160
     frontend_conf: null
     apply_stft: False
-     
-normalize: global_mvn
-normalize_conf:
-    stats_file: data/wsj_fbank_cmvn.npy
 
 encoder: transformer
 encoder_conf:
