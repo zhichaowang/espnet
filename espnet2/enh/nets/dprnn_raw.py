@@ -102,7 +102,7 @@ def choose_norm(norm_type, channel_size):
 
 # TODO(Jing): Use nn.LayerNorm to impl cLN to speed up
 class ChannelwiseLayerNorm(nn.Module):
-    """Channel-wise Layer Normalization (cLN)"""
+    """Channel-wise Layer Normalization (cLN)."""
 
     def __init__(self, channel_size):
         super(ChannelwiseLayerNorm, self).__init__()
@@ -115,7 +115,7 @@ class ChannelwiseLayerNorm(nn.Module):
         self.beta.data.zero_()
 
     def forward(self, y):
-        """ChannelwiseLayerNorm forwad
+        """Channel-wise layer normalization forwad.
 
         Args:
             y: [M, N, K], M is batch size, N is channel size, K is length
@@ -129,7 +129,7 @@ class ChannelwiseLayerNorm(nn.Module):
 
 
 class GlobalLayerNorm(nn.Module):
-    """Global Layer Normalization (gLN)"""
+    """Global Layer Normalization (gLN)."""
 
     def __init__(self, channel_size):
         super(GlobalLayerNorm, self).__init__()
@@ -142,7 +142,7 @@ class GlobalLayerNorm(nn.Module):
         self.beta.data.zero_()
 
     def forward(self, y):
-        """GlobalLayerNorm forward
+        """Global layer normalization forward.
 
         Args:
             y: [M, N, K], M is batch size, N is channel size, K is length
@@ -170,7 +170,7 @@ class Encoder(nn.Module):
         self.conv1d_U = nn.Conv1d(1, N, kernel_size=W, stride=W // 2, bias=False)
 
     def forward(self, mixture):
-        """Encoder forward
+        """Encoder forward.
 
         Args:
             mixture: [B, T], B is batch size, T is #samples
@@ -192,7 +192,7 @@ class Decoder(nn.Module):
         self.basis_signals = nn.Linear(E, W, bias=False)
 
     def forward(self, mixture_w, est_mask):
-        """Decoder forward
+        """Decoder forward.
 
         Args:
             mixture_w: [B, E, L]
@@ -586,7 +586,7 @@ class FaSNet_base(AbsEnhancement):
         nspk=2,
         win_len=2,
     ):
-        """FaSNet base.
+        """Fasnet base.
 
         Reference:
             "Dual-path RNN: efficient long sequence modeling for
@@ -654,7 +654,7 @@ class FaSNet_base(AbsEnhancement):
         return input, rest
 
     def forward(self, input, voiceP=None):
-        """FaSNet_base forward
+        """FaSNet_base forward.
 
         Args:
             input: torch.Tensor(batch, T)

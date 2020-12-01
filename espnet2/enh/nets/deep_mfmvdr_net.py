@@ -226,7 +226,6 @@ class DeepMFMVDRNet(AbsEnhancement):
             output lengths
             predcited masks: None
         """
-
         # predict spectrum for each speaker
         predicted_spectrums, _, masks = self.forward(input, ilens)
 

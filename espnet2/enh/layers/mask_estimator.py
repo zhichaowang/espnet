@@ -37,7 +37,7 @@ class MaskEstimator(torch.nn.Module):
     def forward(
         self, xs: ComplexTensor, ilens: torch.LongTensor
     ) -> Tuple[Tuple[torch.Tensor, ...], torch.LongTensor]:
-        """The forward function
+        """Mask estimator forward function.
 
         Args:
             xs: (B, F, C, T)
@@ -96,7 +96,7 @@ class MaskEstimator(torch.nn.Module):
 ##########################################
 # modified from https://gitlab.uni-oldenburg.de/hura4843/deep-mfmvdr/-/blob/master/deep_mfmvdr/building_blocks.py (# noqa: E501)
 class cLN(torch.nn.Module):
-    """Cumulative layer normalization"""
+    """Cumulative layer normalization."""
 
     def __init__(self, dimension, eps=1e-8, trainable=True):
         super().__init__()
@@ -146,7 +146,7 @@ class cLN(torch.nn.Module):
 
 
 class DepthConv1d(torch.nn.Module):
-    """Depthwise separable convolution"""
+    """Depthwise separable convolution."""
 
     def __init__(
         self,
@@ -218,7 +218,7 @@ class DepthConv1d(torch.nn.Module):
 class TCNEstimator(torch.nn.Module):
     """Small modification of TCN for spectrum-based parameter estimation
     based on TCN implementation in https://github.com/naplab/Conv-TasNet.
-    """  # noqa: H405
+    """  # noqa: H405, D205, D400
 
     def __init__(
         self,

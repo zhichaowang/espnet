@@ -29,7 +29,7 @@ EPS = torch.finfo(torch.get_default_dtype()).eps
 
 
 class ESPnetEnhancementModel(AbsESPnetModel):
-    """Speech enhancement or separation Frontend model"""
+    """Speech enhancement or separation Frontend model."""
 
     def __init__(
         self,
@@ -66,7 +66,6 @@ class ESPnetEnhancementModel(AbsESPnetModel):
         Returns:
             labels: List[Tensor(B, T, F), ...] or List[ComplexTensor(B, T, F), ...]
         """
-
         assert mask_type in [
             "IBM",
             "IRM",
@@ -122,7 +121,7 @@ class ESPnetEnhancementModel(AbsESPnetModel):
         speech_mix_lengths: torch.Tensor = None,
         **kwargs,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
-        """Frontend + Encoder + Decoder + Calc loss
+        """Frontend + Encoder + Decoder + Calc loss.
 
         Args:
             speech_mix: (Batch, samples) or (Batch, samples, channels)
@@ -520,7 +519,7 @@ class ESPnetEnhancementModel(AbsESPnetModel):
 
     @staticmethod
     def si_snr_loss(ref, inf):
-        """SI-SNR loss
+        """SI-SNR loss.
 
         Args:
             ref: (Batch, samples)

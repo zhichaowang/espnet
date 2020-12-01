@@ -9,6 +9,7 @@ from espnet2.enh.abs_enh import AbsEnhancement
 # Asteroid pretrained load example:
 # model = ConvTasNet.from_pretrained('mpariente/ConvTasNet_WHAM!_sepclean')
 
+
 class AsteroidModel_Converter(AbsEnhancement):
     """The class to convert the models from asteroid to AbsEnhancement net."""
 
