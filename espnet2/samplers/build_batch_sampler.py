@@ -84,7 +84,7 @@ def build_batch_sampler(
     drop_last: bool = False,
     min_batch_size: int = 1,
     fold_lengths: Sequence[int] = (),
-    padding: bool = False,
+    padding: bool = True,
     utt2category_file: str = None,
 ) -> AbsSampler:
     """Helper function to instantiate BatchSampler.

@@ -72,7 +72,7 @@ class ESPnetASRModel(AbsESPnetModel):
         self.frontend = frontend
         self.specaug = specaug
         self.normalize = normalize
-        self.additional_utt_mvn= None
+        self.additional_utt_mvn = None
         self.encoder = encoder
         self.decoder = decoder
         if ctc_weight == 0.0:
