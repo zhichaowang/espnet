@@ -43,7 +43,7 @@ def humanfriendly_or_none(value: str):
 
 
 class Speech2Text:
-    """Speech2Text class
+    """Speech2Text class.
 
     Examples:
         >>> import soundfile
@@ -51,7 +51,6 @@ class Speech2Text:
         >>> audio, rate = soundfile.read("speech.wav")
         >>> speech2text(audio)
         [(text, token, token_int, hypothesis object), ...]
-
     """
 
     def __init__(
@@ -175,13 +174,12 @@ class Speech2Text:
     ) -> List[
         List[Tuple[Optional[float], Optional[str], List[str], List[int], Hypothesis]]
     ]:
-        """Inference
+        """Inference.
 
         Args:
             data: Input speech data
         Returns:
             text, token, token_int, hyp
-
         """
         assert check_argument_types()
         speech = speech_mix

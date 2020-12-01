@@ -1,3 +1,4 @@
+from distutils.version import LooseVersion
 from typing import List
 from typing import Optional
 from typing import Union
@@ -7,7 +8,7 @@ import torch
 from torch_complex import functional as FC
 from torch_complex.tensor import ComplexTensor
 
-
+is_torch_1_1_plus = LooseVersion(torch.__version__) >= LooseVersion("1.1.0")
 EPS = torch.finfo(torch.double).eps
 
 
@@ -42,7 +43,8 @@ def get_rtf(
     Returns:
         rtf (ComplexTensor): (..., F, C, 1)
     """
-    if use_torch_solver:
+    if use_torch_solver and is_torch_1_1_plus:
+        # torch.solve is required, which is only available after pytorch 1.1.0+
         phi = FC.solve(psd_speech, psd_noise)[0]
     else:
         phi = FC.matmul(psd_noise.inverse2(), psd_speech)
@@ -113,7 +115,7 @@ def get_mvdr_vector_with_rtf(
     diag_eps: float = 1e-7,
     eps: float = 1e-8,
 ) -> ComplexTensor:
-    """Return the MVDR (Minimum Variance Distortionless Response) vector:
+    """Return the MVDR (Minimum Variance Distortionless Response) vector
         calculated with RTF:
 
         h = (Npsd^-1 @ rtf) / (rtf^H @ Npsd^-1 @ rtf)
@@ -150,7 +152,8 @@ def get_mvdr_vector_with_rtf(
     )
 
     # numerator: (..., C_1, C_2) x (..., C_2, 1) -> (..., C_1)
-    if use_torch_solver:
+    if use_torch_solver and is_torch_1_1_plus:
+        # torch.solve is required, which is only available after pytorch 1.1.0+
         numerator = FC.solve(rtf, psd_n)[0].squeeze(-1)
     else:
         numerator = FC.matmul(psd_n.inverse2(), rtf).squeeze(-1)
@@ -329,7 +332,8 @@ def get_WPD_filter(
         Rf = tik_reg(Rf, reg=diag_eps, eps=eps)
 
     # numerator: (..., C_1, C_2) x (..., C_2, C_3) -> (..., C_1, C_3)
-    if use_torch_solver:
+    if use_torch_solver and is_torch_1_1_plus:
+        # torch.solve is required, which is only available after pytorch 1.1.0+
         numerator = FC.solve(Phi, Rf)[0]
     else:
         numerator = FC.matmul(Rf.inverse2(), Phi)
@@ -440,7 +444,8 @@ def get_WPD_filter_with_rtf(
     # (B, F, (K+1)*C, 1)
     rtf = FC.pad(rtf, (0, 0, 0, psd_observed_bar.shape[-1] - C), "constant", 0)
     # numerator: (..., C_1, C_2) x (..., C_2, 1) -> (..., C_1)
-    if use_torch_solver:
+    if use_torch_solver and is_torch_1_1_plus:
+        # torch.solve is required, which is only available after pytorch 1.1.0+
         numerator = FC.solve(rtf, psd_observed_bar)[0].squeeze(-1)
     else:
         numerator = FC.matmul(psd_observed_bar.inverse2(), rtf).squeeze(-1)

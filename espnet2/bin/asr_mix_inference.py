@@ -22,7 +22,7 @@ from espnet.nets.scorers.ctc import CTCPrefixScorer
 from espnet.nets.scorers.length_bonus import LengthBonus
 from espnet.utils.cli_utils import get_commandline_args
 from espnet2.fileio.datadir_writer import DatadirWriter
-from espnet2.tasks.asr import ASRMixTask
+from espnet2.tasks.asr_mix import ASRMixTask
 from espnet2.tasks.lm import LMTask
 from espnet2.text.build_tokenizer import build_tokenizer
 from espnet2.text.token_id_converter import TokenIDConverter
@@ -35,7 +35,7 @@ from espnet2.utils.types import str_or_none
 
 
 class Speech2Text:
-    """Speech2Text class
+    """Speech2Text class.
 
     Examples:
         >>> import soundfile
@@ -162,7 +162,7 @@ class Speech2Text:
     def __call__(
         self, speech: Union[torch.Tensor, np.ndarray]
     ) -> List[Tuple[Optional[str], List[str], List[int], Hypothesis]]:
-        """Inference
+        """Inference.
 
         Args:
             data: Input speech data

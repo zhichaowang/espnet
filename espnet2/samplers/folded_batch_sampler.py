@@ -7,7 +7,6 @@ from typing import Union
 from typeguard import check_argument_types
 
 from espnet2.fileio.read_text import load_num_sequence_text
-from espnet2.fileio.read_text import read_2column_text
 from espnet2.samplers.abs_sampler import AbsSampler
 from espnet2.samplers.read_category import get_category2utt
 
