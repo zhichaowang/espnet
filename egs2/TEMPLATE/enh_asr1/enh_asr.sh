@@ -349,7 +349,7 @@ joint_stats_dir="${expdir}/joint_stats_${feats_type}_${fs}"
 if [ -n "${speed_perturb_factors}" ]; then
     joint_stats_dir="${joint_stats_dir}_sp"
 fi
-if [ ! -z "${train_aux_set}" ]; then
+if [ -n "${train_aux_set}" ]; then
     joint_stats_dir="${joint_stats_dir}_aux"
 fi
 lm_stats_dir="${expdir}/lm_stats"
@@ -361,7 +361,7 @@ fi
 if [ -n "${speed_perturb_factors}" ]; then
     joint_exp="${joint_exp}_sp"
 fi
-if [ ! -z "${train_aux_set}" ]; then
+if [ -n "${train_aux_set}" ]; then
     joint_exp="${joint_exp}_aux"
 fi
 if [ -z "${lm_exp}" ]; then
@@ -558,16 +558,16 @@ if ! "${skip_data_prep}"; then
             utils/fix_data_dir.sh --utt_extra_files "${utt_extra_files}" "${data_feats}/${dset}"
         done
 
-        if [ ! -z "${train_aux_set}" ]; then
+        if [ -n "${train_aux_set}" ]; then
             combined_train_set=${train_set}"_"${train_aux_set}
             log "Combine the aux set with the train set into new set: ${data_feats}/${combined_train_set}."
             if [ -d ${data_feats}/${combined_train_set} ]; then
-                rm -r ${data_feats}/${combined_train_set} 2>/dev/null
+                rm -r ${data_feats:?"data_feats is empty"}/${combined_train_set} 2>/dev/null
             fi
             mkdir -p "${data_feats}/${combined_train_set}"
             for dset in "${train_set}" "${train_aux_set}"; do
-                for f in `ls ${data_feats}/${dset}/`; do
-                    cat ${data_feats}/${dset}/${f} >> ${data_feats}/${combined_train_set}/${f}
+                for f in "${data_feats}/${dset}"/*; do
+                    cat "${f}" >> ${data_feats}/${combined_train_set}/${f}
                 done
             done
             cp ${data_feats}/${dset}/feats_type ${data_feats}/${combined_train_set}/feats_type
@@ -576,7 +576,7 @@ if ! "${skip_data_prep}"; then
         fi
     fi
 
-    if [ ! -z "${train_aux_set}" ]; then
+    if [ -n "${train_aux_set}" ]; then
         train_set=${train_set}"_"${train_aux_set}
     fi
 

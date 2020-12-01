@@ -4,6 +4,8 @@
 #           2015  Guoguo Chen
 # Apache 2.0
 
+# Modified from the original version in Kaldi
+
 # This script takes data prepared in a corpus-dependent way
 # in data/local/, and converts it into the "canonical" form,
 # in various subdirectories of data/, e.g. data/lang, data/lang_test_ug,

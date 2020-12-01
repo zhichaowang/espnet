@@ -106,6 +106,8 @@ local/wsj_format_data.sh --data_dir data/wsj
 mv data/local data/wsj
 # only for multi-condition training in ASR
 ln -s wsj/train_si284 data/wsj_train_si284
+ln -s text data/wsj_train_si284/text_spk1
+ln -s text data/wsj_train_si284/text_spk2
 awk '{print($1, "single_channel")}' data/wsj_train_si284/utt2spk > data/wsj_train_si284/utt2category
 
 

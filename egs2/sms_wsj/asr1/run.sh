@@ -29,4 +29,4 @@ test_sets="test_eval92"
     --fs "${sample_rate}" \
     --ngpu 1 \
     --local_data_opts "--sample_rate ${sample_rate} --nj ${nj}" \
-    --srctexts "data/wsj/train_si284/text data/wsj/local/other_text/text" "$@"
+    --srctexts "data/wsj/train_si284/text data/local/other_text/text" "$@"
