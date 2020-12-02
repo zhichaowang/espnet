@@ -37,7 +37,6 @@ gpu_inference=false  # Whether to perform gpu decoding.
 dumpdir=dump         # Directory to dump features.
 expdir=exp           # Directory to save experiments.
 python=python3       # Specify python to execute espnet commands
-mem=10G              # Memory per CPU
 
 # Data preparation related
 local_data_opts= # The options given to local/data.sh.
@@ -1035,7 +1034,7 @@ if ! "${skip_train}"; then
         fi
         # shellcheck disable=SC2086
         ${python} -m espnet2.bin.launch \
-            --cmd "${cuda_cmd} --name ${jobname} --mem ${mem}" \
+            --cmd "${cuda_cmd} --name ${jobname}" \
             --log "${joint_exp}"/train.log \
             --ngpu "${ngpu}" \
             --num_nodes "${num_nodes}" \
