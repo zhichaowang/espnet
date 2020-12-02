@@ -1,1 +1,1 @@
-../asr1/local/format_data.sh
+../../asr1/local/format_data.sh

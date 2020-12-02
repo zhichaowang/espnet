@@ -11,17 +11,39 @@ log() {
     local fname=${BASH_SOURCE[1]##*/}
     echo -e "$(date '+%Y-%m-%dT%H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
 }
-
-. ./db.sh
+SECONDS=0
 
 
 stage=1
 stop_stage=2
-wavdir=${PWD}/wav # set the directory of the multi-condition training WAV files to be generated
 nch_train=2 # number of training channels
 
+help_message=$(cat << EOF
+Usage: $0
+
+Options:
+    --compute_se (bool): Default ${compute_se}
+        flag for turing on computation of dereverberation measures
+    --enable_pesq (bool): Default ${enable_pesq}
+        please make sure that you or your institution have the license to report PESQ before turning on this flag
+    --nch_sq (int): Default ${nch_se}
+
+EOF
+)
+
+
+log "$0 $*"
 . utils/parse_options.sh
 
+. ./db.sh
+. ./path.sh
+. ./cmd.sh
+
+
+if [ $# -gt 0 ]; then
+    log "${help_message}"
+    exit 2
+fi
 
 if [ ! -e "${REVERB}" ]; then
     log "Fill the value of 'REVERB' of db.sh"
@@ -44,13 +66,16 @@ fi
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     log "stage 1: Data simulation"
 
-    local/generate_data.sh --wavdir ${wavdir} ${WSJCAM0}
-    local/prepare_simu_data.sh --wavdir ${wavdir} ${REVERB} ${WSJCAM0}
-    local/prepare_real_data.sh --wavdir ${wavdir} ${REVERB}
+    # This takes ~ hours.
+    # (1) Download XX GB data to data/local/reverb_tools
+    # (2) Generate training data via MATLAB (XX GB)
+    local/generate_data.sh --wavdir ${REVERB_OUT} ${WSJCAM0}
+    local/prepare_simu_data.sh --wavdir ${REVERB_OUT} ${REVERB} ${WSJCAM0}
+    local/prepare_real_data.sh --wavdir ${REVERB_OUT} ${REVERB}
 
     # Run WPE and Beamformit
     local/run_wpe.sh
-    local/run_beamform.sh ${wavdir}/WPE/
+    local/run_beamform.sh ${REVERB_OUT}/WPE/
     # Download and install speech enhancement evaluation tools
     if [ ! -d local/REVERB_scores_source ] || [ ! -d local/REVERB_scores_source/REVERB-SPEENHA.Release04Oct/evaltools/SRMRToolbox ] || [ ! -f local/PESQ ]; then
         # download and install speech enhancement evaluation tools
@@ -112,3 +137,5 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
         exit 1
     fi
 fi
+
+log "Successfully finished. [elapsed=${SECONDS}s]"

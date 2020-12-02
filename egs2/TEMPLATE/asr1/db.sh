@@ -21,6 +21,7 @@ CSJVER=dvd  ## Set your CSJ format (dvd or usb).
             ##            e.g. $ ls $CSJDATATOP(USB) => 00README.txt DOC MORPH ... WAV fileList.csv
             ## Case merl :MERL setup. Neccesary directory is WAV and sdb
 CSMSC=downloads
+DIRHA_WSJ=
 HKUST1=
 HKUST2=
 LABOROTV=
@@ -90,6 +91,7 @@ if [[ "$(hostname -d)" == clsp.jhu.edu ]]; then
                 ##            e.g. $ ls $CSJDATATOP(USB) => 00README.txt DOC MORPH ... WAV fileList.csv
                 ## Case merl :MERL setup. Neccesary directory is WAV and sdb
     CSMSC=downloads
+    DIRHA_WSJ=
     HKUST1=
     HKUST2=
     LABOROTV=
