@@ -156,7 +156,8 @@ class TFMaskingNet(AbsEnhancement):
         if nonlinear not in ("sigmoid", "relu", "tanh"):
             raise ValueError("Not supporting nonlinear={}".format(nonlinear))
 
-        self.nonlinear = {
+        self.nonlinear = nonlinear
+        self.nonlinear_layer = {
             "sigmoid": torch.nn.Sigmoid(),
             "relu": torch.nn.ReLU(),
             "tanh": torch.nn.Tanh(),
@@ -203,7 +204,7 @@ class TFMaskingNet(AbsEnhancement):
         masks = []
         for linear in self.linear:
             y = linear(x)
-            y = self.nonlinear(y)
+            y = self.nonlinear_layer(y)
             masks.append(y)
 
         if self.return_spec_in_training:

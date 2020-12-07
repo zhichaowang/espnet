@@ -66,15 +66,18 @@ fi
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     log "stage 1: Data simulation"
 
-    # This takes ~ hours.
-    # (1) Download XX GB data to data/local/reverb_tools
-    # (2) Generate training data via MATLAB (XX GB)
+    # (1) Download 327 MB data to data/local/reverb_tools
+    # (2) Generate 7861 WAV files in ${REVERB_OUT}/WSJCAM0/data/primary_microphone/si_tr for simulation (1.8 GB, 15h 32m 28s)
+    # (3) Simulate 62888 WAV files (training data) in ${REVERB_OUT}/REVERB_WSJCAM0_tr/data/mc_train/primary_microphone/si_tr
+    #     via MATLAB (15 GB, 124h 19m 46s)
     local/generate_data.sh --wavdir ${REVERB_OUT} ${WSJCAM0}
     local/prepare_simu_data.sh --wavdir ${REVERB_OUT} ${REVERB} ${WSJCAM0}
     local/prepare_real_data.sh --wavdir ${REVERB_OUT} ${REVERB}
 
     # Run WPE and Beamformit
+    # This takes ~100 minutes with nj=50. Generated WAV files are in ${REVERB_OUT}/WPE.
     local/run_wpe.sh
+    # This takes ~100 minutes with nj=20.
     local/run_beamform.sh ${REVERB_OUT}/WPE/
     # Download and install speech enhancement evaluation tools
     if [ ! -d local/REVERB_scores_source ] || [ ! -d local/REVERB_scores_source/REVERB-SPEENHA.Release04Oct/evaltools/SRMRToolbox ] || [ ! -f local/PESQ ]; then

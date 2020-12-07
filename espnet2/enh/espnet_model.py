@@ -1,4 +1,5 @@
 from distutils.version import LooseVersion
+from functools import partial
 from functools import reduce
 from itertools import permutations
 from typing import Dict
@@ -10,6 +11,8 @@ from torch_complex.tensor import ComplexTensor
 from typeguard import check_argument_types
 
 from espnet2.enh.abs_enh import AbsEnhancement
+from espnet2.enh.nets.beamformer_net import BeamformerNet
+from espnet2.enh.nets.tf_mask_net import TFMaskingNet
 from espnet2.torch_utils.device_funcs import force_gatherable
 from espnet2.train.abs_espnet_model import AbsESPnetModel
 
@@ -18,6 +21,8 @@ is_torch_1_3_plus = LooseVersion(torch.__version__) >= LooseVersion("1.3.0")
 ALL_LOSS_TYPES = (
     # mse_loss(predicted_mask, target_label)
     "mask_mse",
+    # bce_loss(predicted_mask, target_label)
+    "mask_bce",
     # mse_loss(enhanced_magnitude_spectrum, target_magnitude_spectrum)
     "magnitude",
     # mse_loss(enhanced_complex_spectrum, target_complex_spectrum)
@@ -338,7 +343,16 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                     spectrum_ref, spectrum_pre, loss_func
                 )
             elif self.loss_type.startswith("mask"):
-                if self.loss_type == "mask_mse":
+                if self.loss_type == "mask_bce":
+                    if isinstance(self.enh_model, BeamformerNet):
+                        is_logits = self.enh_model.beamformer.mask.nonlinear not in (
+                            "sigmoid",
+                            "crelu",
+                        )
+                    elif isinstance(self.enh_model, TFMaskingNet):
+                        is_logits = self.enh_model.nonlinear != "sigmoid"
+                    loss_func = partial(self.tf_bce_loss, is_logits=is_logits)
+                elif self.loss_type == "mask_mse":
                     loss_func = self.tf_mse_loss
                 else:
                     raise ValueError("Unsupported loss type: %s" % self.loss_type)
@@ -353,8 +367,37 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                     spectrum_mix, spectrum_ref, mask_type=self.mask_type
                 )
 
-                # compute TF masking loss
+                # compute TF masking loss on speech masks
                 tf_loss, perm = self._permutation_loss(mask_ref, mask_pre_, loss_func)
+
+                if "noise1" in mask_pre:
+                    if noise_ref is None:
+                        raise ValueError(
+                            "No noise reference for training!\n"
+                            'Please specify "--use_noise_ref true" in run.sh'
+                        )
+
+                    mask_noise_pre = [
+                        mask_pre["noise{}".format(n + 1)]
+                        for n in range(self.num_noise_type)
+                    ]
+                    assert len(mask_noise_pre) == noise_ref.size(1), (
+                        len(mask_noise_pre),
+                        noise_ref.size(1),
+                    )
+                    noise_ref = torch.unbind(noise_ref, dim=1)
+                    noise_spectrum_ref = [
+                        ComplexTensor(*torch.unbind(self.enh_model.stft(nr)[0], dim=-1))
+                        for nr in noise_ref
+                    ]
+                    noise_mask_ref = self._create_mask_label(
+                        spectrum_mix, noise_spectrum_ref, mask_type=self.mask_type
+                    )
+
+                    tf_noise_loss, perm_n = self._permutation_loss(
+                        noise_mask_ref, mask_noise_pre, loss_func
+                    )
+                    tf_loss = tf_loss + tf_noise_loss
 
                 if "dereverb1" in mask_pre:
                     if dereverb_speech_ref is None:
@@ -362,6 +405,13 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                             "No dereverberated reference for training!\n"
                             'Please specify "--use_dereverb_ref true" in run.sh'
                         )
+                    if self.loss_type == "mask_bce":
+                        if isinstance(self.enh_model, BeamformerNet):
+                            is_logits = self.enh_model.wpe.mask_est.nonlinear not in (
+                                "sigmoid",
+                                "crelu",
+                            )
+                        loss_func = partial(self.tf_bce_loss, is_logits=is_logits)
 
                     mask_wpe_pre = [
                         mask_pre["dereverb{}".format(spk + 1)]
@@ -385,31 +435,6 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                         dereverb_mask_ref, mask_wpe_pre, loss_func
                     )
                     tf_loss = tf_loss + tf_dereverb_loss
-
-                if "noise1" in mask_pre:
-                    if noise_ref is None:
-                        raise ValueError(
-                            "No noise reference for training!\n"
-                            'Please specify "--use_noise_ref true" in run.sh'
-                        )
-
-                    noise_ref = torch.unbind(noise_ref, dim=1)
-                    noise_spectrum_ref = [
-                        ComplexTensor(*torch.unbind(self.enh_model.stft(nr)[0], dim=-1))
-                        for nr in noise_ref
-                    ]
-                    noise_mask_ref = self._create_mask_label(
-                        spectrum_mix, noise_spectrum_ref, mask_type=self.mask_type
-                    )
-
-                    mask_noise_pre = [
-                        mask_pre["noise{}".format(n + 1)]
-                        for n in range(self.num_noise_type)
-                    ]
-                    tf_noise_loss, perm_n = self._permutation_loss(
-                        noise_mask_ref, mask_noise_pre, loss_func
-                    )
-                    tf_loss = tf_loss + tf_noise_loss
             else:
                 raise ValueError("Unsupported loss type: %s" % self.loss_type)
 
@@ -440,6 +465,39 @@ class ESPnetEnhancementModel(AbsESPnetModel):
             loss = si_snr_loss
 
             return loss, speech_pre, None, speech_lengths, perm
+
+    @staticmethod
+    def tf_bce_loss(ref, inf, is_logits=True):
+        """time-frequency binary cross-entropy loss.
+
+        Args:
+            ref: (Batch, T, F) or (Batch, T, C, F)
+            inf: (Batch, T, F) or (Batch, T, C, F)
+            is_logits (bool): whether `inf` is derived before Sigmoid
+        Returns:
+            loss: (Batch,)
+        """
+        assert ref.shape == inf.shape, (ref.shape, inf.shape)
+        # in case of binary masks
+        ref = ref.type(inf.dtype)
+        assert isinstance(ref, torch.Tensor), type(ref)
+        assert isinstance(inf, torch.Tensor), type(inf)
+        loss_func = (
+            torch.nn.functional.binary_cross_entropy_with_logits
+            if is_logits
+            else torch.nn.functional.binary_cross_entropy
+        )
+        bceloss = loss_func(inf, ref, reduction="none")
+        if ref.dim() == 3:
+            bceloss = bceloss.mean(dim=[1, 2])
+        elif ref.dim() == 4:
+            bceloss = bceloss.mean(dim=[1, 2, 3])
+        else:
+            raise ValueError(
+                "Invalid input shape: ref={}, inf={}".format(ref.shape, inf.shape)
+            )
+
+        return bceloss
 
     @staticmethod
     def tf_mse_loss(ref, inf):

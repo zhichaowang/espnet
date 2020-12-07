@@ -1,1 +1,1 @@
-../../asr1/local/ndx2flist.pl
+../../../../egs/dirha_wsj/asr1/local/ndx2flist.pl

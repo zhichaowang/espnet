@@ -14,12 +14,14 @@ SECONDS=0
 
 stage=1
 stop_stage=3
-wdir=data/local
-outdir=${PWD}/data/Data
+outdir=${PWD}/DIRHA_WSJ
 # Select the reference microphone for the generated databases
 # => See ${DIRHA}/Additional_info/Floorplan/*.png for the complete list.
 ref_mic=Beam_Circular_Array # Beam_Circular_Array Beam_Linear_Array KA6 L1C
-IR_folder=/export/b18/xwang/data/ # folders for Impulse responses for WSJ contamination (available at https://github.com/SHINE-FBK/DIRHA_English_wsj/tree/master/Training_IRs)
+# available at https://github.com/SHINE-FBK/DIRHA_English_wsj/tree/master/Training_IRs
+# NOTE: if using the RIRs from the above url, please rename the directories in Training_IRs
+#  from {T1_O6,T2_O5,T3_O3} to {T1_06,T2_05,T3_03}, so that our script can recognize them.
+IR_folder=/export/b18/xwang/data/ # folders for Impulse responses for WSJ contamination
 sph_reader=sph2pipe
 
 log "$0 $*"
@@ -56,12 +58,32 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     # Following the instructions in https://github.com/SHINE-FBK/DIRHA_English_wsj
     #  to generate training and test data (wsj data contaminated with noise and reverberation)
     if ! command -v matlab >/dev/null 2>&1; then
-        echo "matlab not found."
+        log "matlab not found."
         exit 1
     fi
     if ! command -v ${sph_reader} >/dev/null 2>&1; then
-        echo "sph2pipe not found."
+        log "sph2pipe not found."
         exit 1
+    fi
+
+    if [ ! -d "${IR_folder}" ]; then
+        url=https://github.com/SHINE-FBK/DIRHA_English_wsj.git
+        log "'${IR_folder}' does not exist. Download from '${url}' instead."
+        (cd local; git clone ${url})
+        # rename the directories so that our script can recognize them
+        (
+        cd local/DIRHA_English_wsj/Training_IRs;
+        mv T1_O6 T1_06;
+        mv T2_O5 T2_05;
+        mv T3_O3 T3_03
+        )
+        ln -s "${PWD}/local/DIRHA_English_wsj/Training_IRs" "${IR_folder}"
+    else
+        num_rirs=$(find "${IR_folder}" -type f -name "*.mat" | wc -l)
+        if [[ "$num_rirs" != "207" ]]; then
+            log "Error: The number of .mat files in '${IR_folder}' is ${num_rirs} != 207."
+            exit 1
+        fi
     fi
 
     cmdfile=$(realpath local/contaminate_wsj.sh)
@@ -72,14 +94,14 @@ matlab -nodesktop -nodisplay -nosplash -r "addpath('${PWD}/local/tools'); Data_C
 EOF
     chmod +x "$cmdfile"
 
-    # Run Matlab (This takes about 30 minutes with ref_mic=Beam_Circular_Array)
-    # Expected data directories to be generated (~ 711MB in total):
-    #   - data/Data/WSJ1_contaminated_mic_${ref_mic}/**/*.wav
-    #   - data/Data/WSJ0_contaminated_mic_${ref_mic}/**/*.wav
-    #   - data/Data/DIRHA_wsj_oracle_VAD_mic_${ref_mic}/{Real,Sim}/**/*.wav
+    # Run Matlab (This takes ~8 hours with ref_mic=Beam_Circular_Array)
+    # Expected data directories to be generated (~34 GB in total):
+    #   - data/Data/WSJ1_contaminated_mic_${ref_mic}/**/*.wav (96337)
+    #   - data/Data/WSJ0_contaminated_mic_${ref_mic}/**/*.wav (35487)
+    #   - data/Data/DIRHA_wsj_oracle_VAD_mic_${ref_mic}/{Real,Sim}/**/*.wav (818)
     (
-    cd "${wdir}/Tools" && \
-    echo "Log is in ${wdir}/Tools/contaminate_wsj.log" && \
+    cd local && \
+    log "Log is in local/contaminate_wsj.log" && \
     $train_cmd contaminate_wsj.log "$cmdfile"
     )
 
@@ -87,37 +109,41 @@ EOF
     num_wsj1_wavs=$(find "${PWD}/data/Data/WSJ1_contaminated_mic_${ref_mic}" -type f -name "*.wav" | wc -l)
     num_wsj0_wavs=$(find "${PWD}/data/Data/WSJ0_contaminated_mic_${ref_mic}" -type f -name "*.wav" | wc -l)
     num_dirha_wavs=$(find "${PWD}/data/Data/DIRHA_wsj_oracle_VAD_mic_${ref_mic}" -type f -name "*.wav" | wc -l)
-    if [[ "${num_wsj1_wavs},${num_wsj0_wavs},${num_dirha_wavs}" != "xxx,xxx,xxx" ]]; then
-        log "Error: Simulation failed! See ${wdir}/Tools/contaminate_wsj.log for more information"
+    if [[ "${num_wsj1_wavs},${num_wsj0_wavs},${num_dirha_wavs}" != "96337,35487,818" ]]; then
+        log "Error: Simulation failed! See local/contaminate_wsj.log for more information"
         exit 1;
     fi
 fi
 
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
-    log "stage 2: Data Preparation"
+    log "stage 2: ASR Data Preparation"
 
-    # train data
+    # train data (data/train_si284_Beam_Circular_Array)
     wsj0_contaminated_folder=WSJ0_contaminated_mic_${ref_mic} # path of the wsj0 training data
     wsj1_contaminated_folder=WSJ1_contaminated_mic_${ref_mic} # path of the wsj1 training data
     local/wsj_data_prep.sh ${outdir}/$wsj0_contaminated_folder/??-{?,??}.? ${outdir}/$wsj1_contaminated_folder/??-{?,??}.? || exit 1;
     local/wsj_format_data.sh ${ref_mic} || exit 1;
 
-    # driha test data
+    # driha test data (data/dirha_{sim,real}_Beam_Circular_Array)
     DIRHA_wsj_data=${outdir}/DIRHA_wsj_oracle_VAD_mic_${ref_mic}
-    local/dirha_data_prep.sh $DIRHA_wsj_data/Sim dirha_sim_${ref_mic}  || exit 1;
-    local/dirha_data_prep.sh $DIRHA_wsj_data/Real dirha_real_${ref_mic}  || exit 1;
+    local/dirha_data_prep.sh ${DIRHA_wsj_data}/Sim dirha_sim_${ref_mic}  || exit 1;
+    local/dirha_data_prep.sh ${DIRHA_wsj_data}/Real dirha_real_${ref_mic}  || exit 1;
 fi
 
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
-    log "stage 3: Enhancement data preparation"
+    log "stage 3: Enhancement Data Preparation"
 
+    # train data (data/train_si284_Beam_Circular_Array)
+
+    # driha test data (data/dirha_sim_Beam_Circular_Array)
+    
 fi
 
 other_text=data/local/other_text/text
 nlsyms=data/nlsyms.txt
 
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
-    log "stage 4: Srctexts preparation"
+    log "stage 4: Srctexts Preparation"
 
     mkdir -p "$(dirname ${other_text})"
 

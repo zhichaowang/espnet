@@ -1,1 +1,1 @@
-../../asr1/local/cstr_ndx2flist.pl
+../../../../egs/dirha_wsj/asr1/local/cstr_ndx2flist.pl

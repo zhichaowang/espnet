@@ -1,1 +1,1 @@
-../../asr1/local/find_transcripts.pl
+../../../../egs/dirha_wsj/asr1/local/find_transcripts.pl

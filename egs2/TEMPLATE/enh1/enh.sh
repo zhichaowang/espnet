@@ -720,17 +720,11 @@ if "${score_with_asr}"; then
                 mkdir -p "${_logdir}"
                 mkdir -p "${_decode_dir}"
 
-
-                # cp ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} ${_ddir}/wav_ori.scp
-                # pick 100 utterences for debug
-                # head -100 ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} > ${_ddir}/wav.scp
                 cat ${enh_exp}/enhanced_${dset}/scoring/wav_spk${spk} > ${_ddir}/wav.scp
                 cp data/${dset}/text_spk${spk} ${_ddir}/text
                 cp ${_data}/{spk2utt,utt2spk,utt2num_samples,feats_type} ${_ddir}
                 utils/fix_data_dir.sh "${_ddir}"
                 mv ${_ddir}/wav.scp ${_ddir}/wav_ori.scp
-
-                
 
                 scripts/audio/format_wav_scp.sh --nj "${inference_nj}" --cmd "${_cmd}" \
                     --out-filename "wav.scp" \
@@ -784,7 +778,6 @@ if "${score_with_asr}"; then
             _cmd=${decode_cmd}
             _ngpu=0
         fi
-
 
         for dset in ${valid_set} ${test_sets}; do
             _inf_dir="${enh_exp}/enhanced_${dset}"
@@ -860,16 +853,11 @@ if "${score_with_asr}"; then
                     log "Write ${_type} result in ${_scoredir}/result.txt"
                     grep -e Avg -e SPKR -m 2 "${_scoredir}/result.txt"
                 done
-
             done
-
         done
     fi
-
 else
-
     log "Skip the stages for scoring with asr"
-
 fi
 
 

@@ -1,1 +1,1 @@
-../../asr1/local/flist2scp.pl
+../../../../egs/dirha_wsj/asr1/local/flist2scp.pl
