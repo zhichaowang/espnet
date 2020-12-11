@@ -66,11 +66,8 @@ use_dereverb_ref=false
 use_noise_ref=false
 
 # Pretrained model related
-# The number of --pretrain_path and --pretrain_key must be same.
-pretrain_path=
-# if pretrain_key is None -> model
-# elif pretrain_key is str e.g. "encoder" -> model.encoder
-pretrain_key=
+# The number of --init_param must be same.
+init_param=
 
 # Enhancement related
 inference_args="--normalize_output_wav true"
@@ -140,8 +137,7 @@ Options:
                          for training a denoising model (default="${use_noise_ref}")
 
     # Pretrained model related
-    --pretrain_path    # pretrained model path (default="${pretrain_path}")
-    --pretrain_key     # name of module to be initialized from the pretrained model (default="${pretrain_key}")
+    --init_param    # pretrained model path and module name (default="${init_param}")
 
     # Enhancement related
     --inference_args   # Arguments for enhancement in the inference stage (default="${inference_args}")
@@ -483,7 +479,6 @@ if ! "${skip_train}"; then
         # "sound" supports "wav", "flac", etc.
         _type=sound
         _fold_length="$((enh_speech_fold_length * 100))"
-        # _opts+="--frontend_conf fs=${fs} "
 
         # prepare train and valid data parameters
         _train_data_param="--train_data_path_and_name_and_type ${_enh_train_dir}/wav.scp,speech_mix,sound "
@@ -547,6 +542,7 @@ if ! "${skip_train}"; then
                 ${_fold_length_param} \
                 --resume true \
                 --output_dir "${enh_exp}" \
+                ${init_param:+--init_param $init_param} \
                 ${_opts} ${enh_args}
 
     fi

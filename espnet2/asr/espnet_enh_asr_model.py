@@ -1,8 +1,11 @@
+from itertools import chain
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
 
+import numpy as np
 from scipy.optimize import linear_sum_assignment
 import torch
 from torch_complex.tensor import ComplexTensor
@@ -60,16 +63,17 @@ class ESPnetEnhASRModel(AbsESPnetModel):
             assert (
                 asr_model.ctc_weight != 0.0 or cal_enh_loss
             )  # need at least one to cal PIT permutation
-        if enh_return_type == "waveform" or enh_return_type is None:
-            assert (
-                self.asr_subclass.frontend.stft
-            ), "need apply stft in asr frontend part"
+        if enh_return_type is None or enh_return_type == "waveform":
+            assert self.asr_subclass.frontend.stft, "need to apply stft in ASR frontend"
         elif enh_return_type == "spectrum":
-            assert (
-                not self.asr_subclass.frontend.stft
-            ), "avoid usage of stft in asr frontend part"
-            # TODO(Xuankai,Jing): verify this additional uttMVN
-            if additional_utt_mvn:
+            if self.asr_subclass.frontend.stft:
+                print(
+                    'WARNING: enh_return_type is reset to "waveform" '
+                    "because ASR frontend will perform STFT again."
+                )
+                self.enh_return_type = "waveform"
+            elif additional_utt_mvn:
+                # TODO(Xuankai,Jing): verify this additional uttMVN
                 self.asr_subclass.additional_utt_mvn = UtteranceMVN(
                     norm_means=True, norm_vars=False
                 )
@@ -78,15 +82,15 @@ class ESPnetEnhASRModel(AbsESPnetModel):
 
         # self.end2end_train = False
         self.end2end_train = end2end_train
-        self.enh_attr = enh_model.__dir__()
-        self.asr_attr = asr_model.__dir__()
+        self.enh_attr = dir(enh_model)
+        self.asr_attr = dir(asr_model)
 
         # fliter the specific attr for each subclass
         self.enh_attr, self.asr_attr = fliter_attrs(self.enh_attr, self.asr_attr)
         for arr in self.enh_attr:
-            exec("self.{} = self.enh_subclass.{}".format(arr, arr))
+            setattr(self, arr, getattr(self.enh_subclass, arr))
         for arr in self.asr_attr:
-            exec("self.{} = self.asr_subclass.{}".format(arr, arr))
+            setattr(self, arr, getattr(self.asr_subclass, arr))
 
         self.enh_model.return_spec_in_training = True
 
@@ -94,12 +98,6 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         self,
         speech_mix: torch.Tensor,
         speech_mix_lengths: torch.Tensor,
-        text_ref1: torch.Tensor,
-        text_ref2: torch.Tensor,
-        text_ref1_lengths: torch.Tensor,
-        text_ref2_lengths: torch.Tensor,
-        speech_ref1: torch.Tensor = None,
-        speech_ref2: torch.Tensor = None,
         **kwargs,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
         """Enhancement + Frontend + Encoder + Decoder + Calc loss
@@ -110,60 +108,66 @@ class ESPnetEnhASRModel(AbsESPnetModel):
             text: (Batch, Length)
             text_lengths: (Batch,)
         """
-        assert text_ref1_lengths.dim() == text_ref2_lengths.dim() == 1, (
-            text_ref1_lengths.shape,
-            text_ref2_lengths.shape,
+        speech_ref = [
+            kwargs["speech_ref{}".format(spk + 1)]
+            if f"speech_ref{spk + 1}" in kwargs
+            else None
+            for spk in range(self.num_spk)
+        ]
+        text_ref = [kwargs["text_ref{}".format(spk + 1)] for spk in range(self.num_spk)]
+        text_ref_lengths = [
+            kwargs["text_ref{}_lengths".format(spk + 1)] for spk in range(self.num_spk)
+        ]
+
+        assert all(ref_lengths.dim() == 1 for ref_lengths in text_ref_lengths), (
+            ref_lengths.shape for ref_lengths in text_ref_lengths
         )
         # Check that batch_size is unified
-        assert (
-            speech_mix.shape[0]
-            == speech_mix_lengths.shape[0]
-            == text_ref1.shape[0]
-            == text_ref1_lengths.shape[0]
-            == text_ref2.shape[0]
-            == text_ref2_lengths.shape[0]
-        ), (
+        batch_size = speech_mix.shape[0]
+        assert batch_size == speech_mix_lengths.shape[0], (
             speech_mix.shape,
             speech_mix_lengths.shape,
-            text_ref1.shape,
-            text_ref1_lengths.shape,
         )
-        batch_size = speech_mix.shape[0]
+        assert all(
+            it.shape[0] == batch_size for it in chain(text_ref, text_ref_lengths)
+        ), (
+            speech_mix.shape,
+            (ref.shape for ref in text_ref),
+            (ref_lengths.shape for ref_lengths in text_ref_lengths),
+        )
 
         # for data-parallel
-        text_length_max = max(text_ref1_lengths.max(), text_ref2_lengths.max())
-        text_ref1 = torch.cat(
-            [
-                text_ref1,
-                torch.ones(batch_size, text_length_max, dtype=text_ref1.dtype).to(
-                    text_ref1.device
-                )
-                * self.idx_blank,
-            ],
-            dim=1,
-        )
-        text_ref2 = torch.cat(
-            [
-                text_ref2,
-                torch.ones(batch_size, text_length_max, dtype=text_ref1.dtype).to(
-                    text_ref1.device
-                )
-                * self.idx_blank,
-            ],
-            dim=1,
-        )
-        text_ref1 = text_ref1[:, :text_length_max]
-        text_ref2 = text_ref2[:, :text_length_max]
+        text_length_max = max(ref_lengths.max() for ref_lengths in text_ref_lengths)
+        text_ref = [
+            torch.cat(
+                [
+                    ref,
+                    torch.ones(batch_size, text_length_max, dtype=ref.dtype).to(
+                        ref.device
+                    )
+                    * self.idx_blank,
+                ],
+                dim=1,
+            )[:, :text_length_max]
+            for ref in text_ref
+        ]
 
         # 0. Enhancement
         if self.enh_return_type is not None:
             if self.enh_return_type == "waveform":
                 # make sure the speech_pre is the raw waveform with same size.
-                if text_ref1.equal(text_ref2):  # single-spk case
+                if len(text_ref) == 1 or all(
+                    [tr.equal(text_ref[0]) for tr in text_ref[1:]]
+                ):
                     # TODO(Jing): find a better way to locate single-spk set
                     # single-speaker case
-                    speech_pre_all, speech_pre_lengths = speech_mix, speech_mix_lengths
-                    text_ref_all, text_ref_lengths = text_ref1, text_ref1_lengths
+                    speech_pre_all = (
+                        speech_mix
+                        if speech_mix.dim() == 2
+                        else speech_mix[..., self.ref_channel]
+                    )
+                    speech_pre_lengths = speech_mix_lengths
+                    text_ref_all, text_ref_lengths = text_ref[0], text_ref_lengths[0]
                     perm = True
                     loss_enh = None
                     n_speaker_asr = 1
@@ -171,57 +175,64 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                     loss_enh, perm, speech_pre, speech_pre_lengths = self.forward_enh(
                         speech_mix,
                         speech_mix_lengths,
-                        speech_ref1=speech_ref1,
-                        speech_ref2=speech_ref2,
+                        speech_ref=speech_ref,
                     )
                     # speech_pre: (bs,num_spk,T)
-                    assert speech_pre[:, 0].shape == speech_mix.shape
+                    if speech_pre[:, 0].dim() == speech_mix.dim():
+                        # single-channel input
+                        assert speech_pre[:, 0].shape == speech_mix.shape, (
+                            speech_pre[:, 0].shape,
+                            speech_mix.shape,
+                        )
+                        speech_frame_length = speech_mix.size(-1)
+                    else:
+                        # multi-channel input
+                        assert speech_pre[:, 0].shape == speech_mix[..., 0].shape, (
+                            speech_pre[:, 0].shape,
+                            speech_mix.shape,
+                        )
+                        speech_frame_length = speech_mix.size(-2)
 
                     if not self.end2end_train:
-                        # if the End and ASR is trained independetly
+                        # if the FrontEnd and ASR are trained independetly
                         # use the speech_ref to train asr
-                        speech_pre = torch.stack([speech_ref1, speech_ref2], dim=1)
+                        speech_pre = torch.stack(speech_ref, dim=1)
 
                     # Pack the separated speakers into the ASR part.
                     speech_pre_all = (
                         speech_pre.transpose(0, 1)
                         .contiguous()
-                        .view(-1, speech_mix.shape[-1])
+                        .view(-1, speech_frame_length)
                     )  # (N_spk*B, T)
                     speech_pre_lengths = torch.stack(
                         [speech_mix_lengths, speech_mix_lengths], dim=1
                     ).view(-1)
-                    text_ref_all = torch.stack([text_ref1, text_ref2], dim=1).view(
-                        batch_size * 2, -1
+                    text_ref_all = torch.stack(text_ref, dim=1).view(
+                        batch_size * len(text_ref), -1
                     )
-                    text_ref_lengths = torch.stack(
-                        [text_ref1_lengths, text_ref2_lengths], dim=1
-                    ).view(-1)
+                    text_ref_lengths = torch.stack(text_ref_lengths, dim=1).view(-1)
                     n_speaker_asr = 1 if self.cal_enh_loss else self.num_spk
             elif self.enh_return_type == "spectrum":
                 loss_enh, perm, speech_pre, speech_pre_lengths = self.forward_enh(
                     speech_mix,
                     speech_mix_lengths,
-                    speech_ref1=speech_ref1,
-                    speech_ref2=speech_ref2,
+                    speech_ref=speech_ref,
                 )
                 if len(speech_pre) > 1:  # multi-speaker case
                     # The return value speech_pre is actually the spectrum
                     # List[torch.Tensor(B, T, D, 2)] or List[torch.complex(B, T, D)]
-                    if speech_pre[0].dtype == torch.tensor:
-                        assert speech_pre[0].dim >= 4 and speech_pre[0].size(-1) == 2
-                    elif isinstance(speech_pre[0], ComplexTensor):
+                    if isinstance(speech_pre[0], ComplexTensor):
                         speech_pre = [
                             torch.stack([pre.real, pre.imag], dim=-1)
                             for pre in speech_pre
                         ]
-                        assert speech_pre[0].dim() >= 4 and speech_pre[0].size(-1) == 2
+                    assert speech_pre[0].dim() >= 4 and speech_pre[0].size(-1) == 2
                     speech_pre_all = torch.cat(speech_pre, dim=0)  # (N_spk*B, T, D)
                     speech_pre_lengths = torch.cat(
                         [speech_pre_lengths, speech_pre_lengths]
                     )
-                    text_ref_all = torch.cat([text_ref1, text_ref2], dim=0)
-                    text_ref_lengths = torch.cat([text_ref1_lengths, text_ref2_lengths])
+                    text_ref_all = torch.cat(text_ref, dim=0)
+                    text_ref_lengths = torch.cat(text_ref_lengths)
                     n_speaker_asr = 1 if self.cal_enh_loss else self.num_spk
                 else:  # single-speaker case
                     assert isinstance(speech_pre[0], ComplexTensor)
@@ -232,20 +243,20 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                         speech_pre[0],
                         speech_pre_lengths,
                     )
-                    text_ref_all, text_ref_lengths = text_ref1, text_ref1_lengths
+                    text_ref_all, text_ref_lengths = text_ref[0], text_ref_lengths[0]
                     n_speaker_asr = 1  # single-channel asr after enh
             else:
-                raise NotImplementedError("No such enh_return_type")
+                raise NotImplementedError(
+                    "No such enh_return_type: {}".format(self.enh_return_type)
+                )
         else:
-            # Dont do enhancement
+            # Don't do enhancement
             speech_pre_all = speech_mix  # bs,T
             speech_pre_lengths = speech_mix_lengths  # bs
-            text_ref_all = torch.stack([text_ref1, text_ref2], dim=1).view(
-                batch_size * 2, -1
+            text_ref_all = torch.stack(text_ref, dim=1).view(
+                batch_size * len(text_ref), -1
             )
-            text_ref_lengths = torch.stack(
-                [text_ref1_lengths, text_ref2_lengths], dim=1
-            ).view(-1)
+            text_ref_lengths = torch.stack(text_ref_lengths, dim=1).view(-1)
             n_speaker_asr = self.num_spk  # multi-channel asr w/o enh
             perm = None
 
@@ -340,6 +351,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         self,
         speech_mix: torch.Tensor,
         speech_mix_lengths: torch.Tensor = None,
+        speech_ref: List[torch.Tensor] = None,
         resort_pre: bool = True,
         **kwargs,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
@@ -347,20 +359,13 @@ class ESPnetEnhASRModel(AbsESPnetModel):
 
         Args:
             speech_mix: (Batch, samples) or (Batch, samples, channels)
-            speech_ref: (Batch, num_speaker, samples)
-                        or (Batch, num_speaker, samples, channels)
+            speech_ref: num_speaker * (Batch, samples)
+                        or num_speaker * (Batch, samples, channels)
             speech_mix_lengths: (Batch,), default None for chunk interator,
                             because the chunk-iterator does not have the
                             speech_lengths returned. see in
                             espnet2/iterators/chunk_iter_factory.py
         """
-        # clean speech signal of each speaker
-        speech_ref = [
-            kwargs["speech_ref{}".format(spk + 1)]
-            if f"speech_ref{spk + 1}" in kwargs
-            else None
-            for spk in range(self.num_spk)
-        ]
         # (Batch, num_speaker, samples) or (Batch, num_speaker, samples, channels)
         if speech_ref[0] is not None:
             speech_ref = torch.stack(speech_ref, dim=1)
@@ -475,7 +480,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         # Calc CTC loss
         if n_speakers == 1:
             loss_ctc = self.ctc(encoder_out, encoder_out_lens, ys_pad, ys_pad_lens)
-            loss_ctc = loss_ctc.masked_fill(torch.isinf(loss_ctc), 0)
+            # loss_ctc = loss_ctc.masked_fill(torch.isinf(loss_ctc), 0)
             loss_ctc = loss_ctc.mean()
         else:
             encoder_out, encoder_out_lens, ys_pad, ys_pad_lens = (
@@ -503,7 +508,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                 ],
                 dim=2,
             )  # (B, n_ref, n_hyp)
-            loss_ctc = loss_ctc.masked_fill(torch.isinf(loss_ctc), 0)
+            # loss_ctc = loss_ctc.masked_fill(torch.isinf(loss_ctc), 0)
             perm_detail, min_loss_ctc = self.permutation_invariant_training(loss_ctc)
             loss_ctc = min_loss_ctc.mean()
             # permutate the encoder_out
@@ -567,7 +572,17 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         losses_cpu = losses.data.cpu()
         for b, b_loss in enumerate(losses_cpu):
             # hungarian algorithm
-            row_ind, col_ind = linear_sum_assignment(b_loss)
+            try:
+                row_ind, col_ind = linear_sum_assignment(b_loss)
+            except ValueError as err:
+                if str(err) == "cost matrix is infeasible":
+                    # random assignment since the cost is always inf
+                    col_ind = np.array([0, 1])
+                    min_perm_loss.append(torch.mean(losses[b, col_ind, col_ind]))
+                    hyp_perm.append(col_ind)
+                    continue
+                else:
+                    raise
 
             min_perm_loss.append(torch.mean(losses[b, row_ind, col_ind]))
             hyp_perm.append(col_ind)

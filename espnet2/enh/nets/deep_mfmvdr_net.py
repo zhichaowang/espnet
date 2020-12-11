@@ -26,7 +26,7 @@ class DeepMFMVDRNet(AbsEnhancement):
         self,
         num_spk: int = 1,
         normalize_input: bool = False,
-        mask_type: str = "IPM^2",
+        mask_type: str = "PSM^2",
         loss_type: str = "si_snr",
         # STFT options
         n_fft: int = 128,

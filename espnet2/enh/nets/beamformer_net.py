@@ -18,7 +18,7 @@ class BeamformerNet(AbsEnhancement):
         num_spk: int = 1,
         normalize_input: bool = False,
         train_mask_only: bool = True,
-        mask_type: str = "IPM^2",
+        mask_type: str = "PSM^2",
         loss_type: str = "mask_mse",
         # STFT options
         n_fft: int = 512,

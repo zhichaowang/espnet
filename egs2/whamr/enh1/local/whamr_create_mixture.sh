@@ -39,12 +39,13 @@ mkdir -p ${wdir}
 echo "Downloading WHAMR! data generation scripts and documentation."
 
 if [ -z "$wham_noise" ]; then
+  # 17.65 GB unzipping to 35 GB
   wham_noise_url=https://storage.googleapis.com/whisper-public/wham_noise.zip
-  wget --continue -O $wdir/wham_noise.tar.gz ${wham_noise_url}
+  wget --continue -O $wdir/wham_noise.zip ${wham_noise_url}
   if [ $(ls ${dir}/wham_noise 2>/dev/null | wc -l) -eq 4 ]; then
     echo "'${dir}/wham_noise/' already exists. Skipping..."
   else
-    tar -xzf ${wdir}/wham_noise.tar.gz -C ${dir}
+    unzip ${wdir}/wham_noise.tar.gz -d ${dir}
   fi
   wham_noise=${dir}/wham_noise
 fi
@@ -71,7 +72,7 @@ fi
 # Run simulation (single-process)
 # (This may take ~11 hours to generate min version, 8k data
 #  on Intel(R) Xeon(R) CPU E5-2680 v3 @ 2.50GHz)
-cd ${dir}/whamr_scripts
+cd ${dir}/whamr_scripts || exit 1
 echo "Log is in ${dir}/whamr_scripts/mix.log"
 ${train_cmd} ${dir}/whamr_scripts/mix.log python create_wham_from_scratch.py \
   --wsj0-root ${wsj_full_wav} \
@@ -83,5 +84,3 @@ ${train_cmd} ${dir}/whamr_scripts/mix.log python create_wham_from_scratch.py \
 #  - min_16k: ? GB
 #  - max_8k: ? GB
 #  - max_16k: ? GB
-
-cd ${rootdir}

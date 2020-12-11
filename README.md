@@ -543,4 +543,10 @@ A full example recipe is in `egs/tedlium2/align1/`.
     url = "https://www.aclweb.org/anthology/2020.acl-demos.34",
     pages = "302--311",
 }
+@article{li2020espnet,
+  title={{ESPnet-SE}: end-to-end speech enhancement and separation toolkit designed for asr integration},
+  author={Li, Chenda and Shi, Jing and Zhang, Wangyou and Subramanian, Aswin Shanmugam and Chang, Xuankai and Kamo, Naoyuki and Hira, Moto and Hayashi, Tomoki and Boeddeker, Christoph and Chen, Zhuo and others},
+  journal={arXiv preprint arXiv:2011.03706},
+  year={2020}
+}
 ```

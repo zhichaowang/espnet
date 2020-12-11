@@ -37,20 +37,23 @@ wdir=data/local/downloads
 mkdir -p ${dir}
 mkdir -p ${wdir}/log
 echo "Downloading WHAM! data generation scripts and documentation."
-if [ -z "$wham_noise" ]; then
+if [ ! -d "$wham_noise" ]; then
+  # 17.65 GB unzipping to 35 GB
   wham_noise_url=https://storage.googleapis.com/whisper-public/wham_noise.zip
-  wget --continue -O $wdir/wham_noise.tar.gz ${wham_noise_url}
+  wget --continue -O $wdir/wham_noise.zip ${wham_noise_url}
   if [ $(ls ${dir}/wham_noise 2>/dev/null | wc -l) -eq 4 ]; then
     echo "'${dir}/wham_noise/' already exists. Skipping..."
   else
-    tar -xzf ${wdir}/wham_noise.tar.gz -C ${dir}
+    unzip ${wdir}/wham_noise.zip -d ${dir}
   fi
   wham_noise=${dir}/wham_noise
 fi
 
-script_url=https://storage.googleapis.com/whisper-public/wham_scripts.tar.gz
-wget --continue -O $wdir/wham_scripts.tar.gz ${script_url}
-tar -xzf ${wdir}/wham_scripts.tar.gz -C ${dir}
+if [ ! -d "${dir}/wham_scripts" ]; then
+  script_url=https://storage.googleapis.com/whisper-public/wham_scripts.tar.gz
+  wget --continue -O $wdir/wham_scripts.tar.gz ${script_url}
+  tar -xzf ${wdir}/wham_scripts.tar.gz -C ${dir}
+fi
 
 # If you want to generate both min and max versions with 8k and 16k data,
 #  comment out the following 3 lines.
@@ -62,7 +65,7 @@ echo "WSJ0 wav file."
 local/convert2wav.sh ${wsj0_path} ${wsj_full_wav} || exit 1;
 
 echo "Creating Mixtures."
-cd ${dir}/wham_scripts
+cd ${dir}/wham_scripts || exit 1
 echo "Log is in ${dir}/wham_scripts/mix.log"
 
 # Run simulation (single-process)
@@ -76,6 +79,8 @@ if [ -d "$wsj0_2mix" ]; then
     --wham-noise-root ${wham_noise} \
     --output-dir ${wham_wav}
 else
+  # (This may take ~3 hours to generate min version, 8k data
+  #  on Intel(R) Xeon(R) CPU E5-2678 v3 @ 2.50GHz)
   ${train_cmd} ${dir}/wham_scripts/mix.log python create_wham_from_scratch.py \
     --wsj0-root ${wsj_full_wav} \
     --wham-noise-root ${wham_noise} \
@@ -87,5 +92,3 @@ fi
 #  - min_16k: 56 GB
 #  - max_8k: 53 GB
 #  - max_16k: 106 GB
-
-cd ${rootdir}
