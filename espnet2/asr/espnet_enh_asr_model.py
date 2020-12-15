@@ -367,7 +367,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                             espnet2/iterators/chunk_iter_factory.py
         """
         # (Batch, num_speaker, samples) or (Batch, num_speaker, samples, channels)
-        if speech_ref[0] is not None:
+        if speech_ref is not None and speech_ref[0] is not None:
             speech_ref = torch.stack(speech_ref, dim=1)
         else:
             speech_ref = None

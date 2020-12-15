@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from typing import List
 from typing import Tuple
 
 import torch
@@ -75,6 +76,11 @@ class AsteroidModel_Converter(AbsEnhancement):
             ]
         """
         return self.forward(input, ilens)
+
+    def process_targets(
+        self, input: torch.Tensor, target: List[torch.Tensor], ilens: torch.Tensor
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        return target, ilens
 
 
 if __name__ == "__main__":

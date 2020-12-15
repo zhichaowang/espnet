@@ -1,5 +1,7 @@
 from collections import OrderedDict
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 import torch
 from torch_complex.tensor import ComplexTensor
@@ -197,6 +199,10 @@ class BeamformerNet(AbsEnhancement):
                     mask_w = mask_w.squeeze(-2)
                 elif input_spectrum.dim() == 4:
                     mask_w, flens = self.wpe.predict_mask(input_spectrum, flens)
+                else:
+                    raise ValueError(
+                        "{} should be either 3 or 4".format(input_spectrum.dim())
+                    )
 
                 if mask_w is not None:
                     if isinstance(enhanced, list):
@@ -318,5 +324,12 @@ class BeamformerNet(AbsEnhancement):
             predicted_wavs = [
                 self.stft.inverse(ps, ilens)[0] for ps in predicted_spectrums
             ]
+        else:
+            raise ValueError("Invalid type: {}".format(type(predicted_spectrums)))
 
         return predicted_wavs, ilens, masks
+
+    def process_targets(
+        self, input: torch.Tensor, target: List[torch.Tensor], ilens: torch.Tensor
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        return target, ilens

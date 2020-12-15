@@ -26,16 +26,12 @@ from espnet2.asr.frontend.abs_frontend import AbsFrontend
 from espnet2.asr.frontend.default import DefaultFrontend
 from espnet2.asr.specaug.abs_specaug import AbsSpecAug
 from espnet2.asr.specaug.specaug import SpecAug
-from espnet2.enh.abs_enh import AbsEnhancement
 from espnet2.enh.espnet_model import ESPnetEnhancementModel
-from espnet2.enh.nets.beamformer_net import BeamformerNet
-from espnet2.enh.nets.dprnn_raw import FaSNet_base as DPRNN
-from espnet2.enh.nets.tasnet import TasNet
-from espnet2.enh.nets.tf_mask_net import TFMaskingNet
 from espnet2.layers.abs_normalize import AbsNormalize
 from espnet2.layers.global_mvn import GlobalMVN
 from espnet2.layers.utterance_mvn import UtteranceMVN
 from espnet2.tasks.abs_task import AbsTask
+from espnet2.tasks.enh import enh_choices
 from espnet2.torch_utils.initialize import initialize
 from espnet2.train.class_choices import ClassChoices
 from espnet2.train.collate_fn import CommonCollateFn
@@ -47,17 +43,6 @@ from espnet2.utils.types import int_or_none
 from espnet2.utils.types import str2bool
 from espnet2.utils.types import str_or_none
 
-enh_choices = ClassChoices(
-    name="enh",
-    classes=dict(
-        tf_masking=TFMaskingNet,
-        tasnet=TasNet,
-        wpe_beamformer=BeamformerNet,
-        dprnn=DPRNN,
-    ),
-    type_check=AbsEnhancement,
-    default="tf_masking",
-)
 frontend_choices = ClassChoices(
     name="frontend",
     classes=dict(default=DefaultFrontend),

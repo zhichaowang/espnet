@@ -1,4 +1,6 @@
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 import torch
 import torch.nn.functional as F
@@ -235,5 +237,12 @@ class DeepMFMVDRNet(AbsEnhancement):
             predicted_wavs = [
                 self.stft.inverse(ps, ilens)[0] for ps in predicted_spectrums
             ]
+        else:
+            raise ValueError("Invalid type: {}".format(type(predicted_spectrums)))
 
         return predicted_wavs, ilens, masks
+
+    def process_targets(
+        self, input: torch.Tensor, target: List[torch.Tensor], ilens: torch.Tensor
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        return target, ilens

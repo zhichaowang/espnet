@@ -1,0 +1,44 @@
+optim: adam
+init: xavier_uniform
+max_epoch: 100
+batch_type: folded
+batch_size: 16
+iterator_type: chunk
+chunk_length: 32885
+num_workers: 4
+optim_conf:
+    lr: 1.0e-03
+    eps: 1.0e-08
+    weight_decay: 0
+patience: 4
+val_scheduler_criterion:
+- valid
+- loss
+best_model_criterion:
+-   - valid
+    - si_snr
+    - max
+-   - valid
+    - loss
+    - min
+keep_nbest_models: 1
+scheduler: reducelronplateau
+scheduler_conf:
+    mode: min
+    factor: 0.5
+    patience: 1
+enh: waveunet
+enh_conf:
+    num_inputs: 1
+    num_outputs: 1
+    num_spk: 1
+    input_feature_channels: 32
+    num_levels: 6
+    feature_growth: double
+    kernel_size: 5
+    target_output_size: 31981
+    conv_type: gn
+    res: fixed
+    depth: 1
+    strides: 2
+    loss_type: si_snr

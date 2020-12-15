@@ -1,5 +1,7 @@
 from collections import OrderedDict
 import math
+from typing import List
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -183,6 +185,11 @@ class TasNet(AbsEnhancement):
             zip(["spk{}".format(i + 1) for i in range(self.num_spk)], est_source)
         )
         return est_source, ilens, masks
+
+    def process_targets(
+        self, input: torch.Tensor, target: List[torch.Tensor], ilens: torch.Tensor
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        return target, ilens
 
     @classmethod
     def load_model(cls, path):

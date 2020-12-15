@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from typing import List
 from typing import Tuple
 
 from espnet.nets.pytorch_backend.conformer.encoder import (
@@ -39,7 +40,6 @@ class TFMaskingNet(AbsEnhancement):
         unit: int = 512,
         dropout: float = 0.0,
         # Transformer related
-        idim: int = 512,
         adim: int = 384,
         aheads: int = 4,
         elayers: int = 6,
@@ -53,7 +53,7 @@ class TFMaskingNet(AbsEnhancement):
         transformer_enc_positional_dropout_rate: float = 0.1,
         transformer_enc_attn_dropout_rate: float = 0.1,
         use_scaled_pos_enc: bool = True,
-        # conformer related
+        # Conformer related
         conformer_pos_enc_layer_type: str = "rel_pos",
         conformer_self_attn_layer_type: str = "rel_selfattn",
         conformer_activation_type: str = "swish",
@@ -252,5 +252,12 @@ class TFMaskingNet(AbsEnhancement):
             predicted_wavs = [
                 self.stft.inverse(ps, ilens)[0] for ps in predicted_spectrums
             ]
+        else:
+            raise ValueError
 
         return predicted_wavs, ilens, masks
+
+    def process_targets(
+        self, input: torch.Tensor, target: List[torch.Tensor], ilens: torch.Tensor
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        return target, ilens

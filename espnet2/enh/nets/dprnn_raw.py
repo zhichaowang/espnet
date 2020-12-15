@@ -1,5 +1,7 @@
 from collections import OrderedDict
 import math
+from typing import List
+from typing import Tuple
 
 import torch
 from torch.autograd import Variable
@@ -704,6 +706,11 @@ class FaSNet_base(AbsEnhancement):
 
     def forward_rawwav(self, mixture, ilens=None):
         return self.forward(mixture, ilens)
+
+    def process_targets(
+        self, input: torch.Tensor, target: List[torch.Tensor], ilens: torch.Tensor
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        return target, ilens
 
 
 if __name__ == "__main__":

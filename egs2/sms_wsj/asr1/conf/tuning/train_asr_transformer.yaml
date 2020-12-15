@@ -14,6 +14,7 @@ best_model_criterion:
     - loss
     - min
 keep_nbest_models: 10
+unused_parameters: true
 
 batch_type: folded
 num_workers: 4
@@ -31,9 +32,9 @@ scheduler_conf:
 enh: wpe_beamformer
 enh_conf:
     loss_type: null
-    n_fft: 512
-    win_length: null
-    hop_length: 128
+    n_fft: 256
+    win_length: 256
+    hop_length: 64
     num_spk: 2
     normalize_input: False
     use_wpe: False
@@ -60,9 +61,9 @@ enh_conf:
 frontend: default
 frontend_conf:
     fs: 8000
-    n_fft: 512
-    win_length: 400
-    hop_length: 160
+    n_fft: 256
+    win_length: 256
+    hop_length: 64
     frontend_conf: null
     apply_stft: False
 

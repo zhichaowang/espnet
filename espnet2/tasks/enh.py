@@ -19,6 +19,7 @@ from espnet2.enh.nets.deep_mfmvdr_net import DeepMFMVDRNet
 from espnet2.enh.nets.dprnn_raw import FaSNet_base as DPRNN
 from espnet2.enh.nets.tasnet import TasNet
 from espnet2.enh.nets.tf_mask_net import TFMaskingNet
+from espnet2.enh.nets.wave_u_net import WaveUNet
 from espnet2.tasks.abs_task import AbsTask
 from espnet2.torch_utils.initialize import initialize
 from espnet2.train.class_choices import ClassChoices
@@ -32,11 +33,12 @@ from espnet2.utils.types import str_or_none
 enh_choices = ClassChoices(
     name="enh",
     classes=dict(
-        tf_masking=TFMaskingNet,
-        tasnet=TasNet,
-        wpe_beamformer=BeamformerNet,
-        mfmvdr=DeepMFMVDRNet,
         dprnn=DPRNN,
+        mfmvdr=DeepMFMVDRNet,
+        tasnet=TasNet,
+        tf_masking=TFMaskingNet,
+        waveunet=WaveUNet,
+        wpe_beamformer=BeamformerNet,
         asteroid=AsteroidModel_Converter,
     ),
     type_check=AbsEnhancement,

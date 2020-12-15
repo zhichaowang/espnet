@@ -303,6 +303,9 @@ class ESPnetEnhancementModel(AbsESPnetModel):
 
             # prepare reference speech and reference spectrum
             speech_ref = torch.unbind(speech_ref, dim=1)
+            speech_ref, _ = self.enh_model.process_targets(
+                speech_mix, speech_ref, speech_lengths
+            )
             # List[ComplexTensor(Batch, T, F)] or List[ComplexTensor(Batch, T, C, F)]
             spectrum_ref = [
                 ComplexTensor(*torch.unbind(self.enh_model.stft(sr)[0], dim=-1))
@@ -351,6 +354,8 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                         )
                     elif isinstance(self.enh_model, TFMaskingNet):
                         is_logits = self.enh_model.nonlinear != "sigmoid"
+                    else:
+                        is_logits = False
                     loss_func = partial(self.tf_bce_loss, is_logits=is_logits)
                 elif self.loss_type == "mask_mse":
                     loss_func = self.tf_mse_loss
@@ -386,6 +391,9 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                         noise_ref.size(1),
                     )
                     noise_ref = torch.unbind(noise_ref, dim=1)
+                    noise_ref, _ = self.enh_model.process_targets(
+                        speech_mix, noise_ref, speech_lengths
+                    )
                     noise_spectrum_ref = [
                         ComplexTensor(*torch.unbind(self.enh_model.stft(nr)[0], dim=-1))
                         for nr in noise_ref
@@ -411,6 +419,8 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                                 "sigmoid",
                                 "crelu",
                             )
+                        else:
+                            is_logits = False
                         loss_func = partial(self.tf_bce_loss, is_logits=is_logits)
 
                     mask_wpe_pre = [
@@ -423,6 +433,9 @@ class ESPnetEnhancementModel(AbsESPnetModel):
                         dereverb_speech_ref.size(1),
                     )
                     dereverb_speech_ref = torch.unbind(dereverb_speech_ref, dim=1)
+                    dereverb_speech_ref, _ = self.enh_model.process_targets(
+                        speech_mix, dereverb_speech_ref, speech_lengths
+                    )
                     dereverb_spectrum_ref = [
                         ComplexTensor(*torch.unbind(self.enh_model.stft(dr)[0], dim=-1))
                         for dr in dereverb_speech_ref
@@ -457,6 +470,9 @@ class ESPnetEnhancementModel(AbsESPnetModel):
             # speech_pre: list[(batch, sample)]
             assert speech_pre[0].dim() == 2, speech_pre[0].dim()
             speech_ref = torch.unbind(speech_ref, dim=1)
+            speech_ref, _ = self.enh_model.process_targets(
+                speech_mix, speech_ref, speech_lengths
+            )
 
             # compute si-snr loss
             si_snr_loss, perm = self._permutation_loss(
