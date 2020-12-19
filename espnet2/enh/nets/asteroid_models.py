@@ -4,7 +4,6 @@ from typing import Tuple
 
 import torch
 
-from asteroid.models import *
 from espnet2.enh.abs_enh import AbsEnhancement
 
 # Asteroid pretrained load example:
@@ -24,15 +23,21 @@ class AsteroidModel_Converter(AbsEnhancement):
     ):
         super(AsteroidModel_Converter, self).__init__()
 
+        # Please make sure the installation of Asteroid.
+        # https://github.com/asteroid-team/asteroid
+        from asteroid import models
+
         model_related_kwargs = {
             k: None if v == "None" else v for k, v in model_related_kwargs.items()
         }
         # print('args:',model_related_kwargs)
 
         if pretrained_path:
-            model = eval("{}.from_pretrained('{}')".format(model_name, pretrained_path))
+            model = eval(
+                "models.{}.from_pretrained('{}')".format(model_name, pretrained_path)
+            )
         else:
-            model_name = eval(model_name)
+            model_name = getattr(models, model_name)
             model = model_name(n_src=n_src, **model_related_kwargs)
 
         self.model = model

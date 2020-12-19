@@ -27,7 +27,9 @@ def fliter_attrs(a, b):
 
 
 class ESPnetEnhASRModel(AbsESPnetModel):
-    """CTC-attention hybrid Encoder-Decoder model"""
+    """Enhancement frontend with
+    CTC-attention hybrid Encoder-Decoder model
+    """
 
     def __init__(
         self,
@@ -42,8 +44,9 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         assert check_argument_types()
         assert 0.0 <= asr_model.ctc_weight <= 1.0, asr_model.ctc_weight
         assert 0.0 <= enh_weight <= 1.0, asr_model.ctc_weight
-        # TODO(Jing): add humanfriendly or str_or_none typeguard
-        if enh_return_type == "none" or enh_return_type == "None":
+        if enh_return_type is None or (
+            enh_return_type.lower() in ("none", "null", "nil")
+        ):
             enh_return_type = None
         assert enh_return_type in ["waveform", "spectrum", None]
         assert asr_model.rnnt_decoder is None, "Not implemented"
@@ -85,6 +88,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         self.enh_attr = dir(enh_model)
         self.asr_attr = dir(asr_model)
 
+        # Note(Jing): self delegation from the enh and asr sub-modules
         # fliter the specific attr for each subclass
         self.enh_attr, self.asr_attr = fliter_attrs(self.enh_attr, self.asr_attr)
         for arr in self.enh_attr:
@@ -92,6 +96,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         for arr in self.asr_attr:
             setattr(self, arr, getattr(self.asr_subclass, arr))
 
+        # Note(Jing): self.enh_model is delegated from self.enh_subclass
         self.enh_model.return_spec_in_training = True
 
     def forward(
@@ -460,8 +465,10 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                     speech_pre_list.append(torch.stack(batch_list, dim=0))
 
                 speech_pre = torch.stack(speech_pre_list, dim=0)  # bs,num_spk,...
+                speech_pre = torch.unbind(speech_pre, dim=1) # list[(bs,...)] of spk
             else:
-                speech_pre = torch.stack(speech_pre, dim=1)  # bs,num_spk,...
+                # speech_pre = torch.stack(speech_pre, dim=1)  # bs,num_spk,...
+                pass
         elif self.enh_return_type == "spectrum":
             # speech_pre: List([BS,T,F]) of complexTensor
             if resort_pre and perm is not None:

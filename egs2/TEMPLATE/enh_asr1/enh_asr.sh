@@ -173,6 +173,7 @@ Options:
     --bpe_input_sentence_size # Size of input sentence for BPE (default="${bpe_input_sentence_size}").
     --bpe_nlsyms              # Non-linguistic symbol list for sentencepiece, separated by a comma. (default="${bpe_nlsyms}").
     --bpe_char_cover          # Character coverage when modeling BPE (default="${bpe_char_cover}").
+
     # Language model related
     --lm_tag          # Suffix to the result dir for language model training (default="${lm_tag}").
     --lm_exp          # Specify the direcotry path for LM experiment. If this option is specified, lm_tag is ignored (default="${lm_exp}").
@@ -183,8 +184,20 @@ Options:
     --word_vocab_size # Size of word vocabulary (default="${word_vocab_size}").
     --num_splits_lm=1   # Number of splitting for lm corpus (default="${num_splits_lm}").
 
+    # Joint model related
+    --joint_tag    # Suffix to the result dir for enhancement model training (default="${joint_tag}").
+    --joint_config # Config for enhancement + ASR model joint training (default="${joint_config}").
+    --joint_args   # Arguments for enhancement model training, e.g., "--max_epoch 10" (default="${joint_args}").
+                   # Note that it will overwrite args in enhancement config.
+    --joint_exp    # Specify the direcotry path for ASR experiment. If this option is specified, joint_tag is ignored.
+
+    # Enhancement model related
+    --spk_num          # Number of speakers in the input audio (default="${spk_num}")
+    --noise_type_num   # Number of noise types in the input audio (default="${noise_type_num}")
+    --dereverb_ref_num # Number of references for dereverberation (default="${dereverb_ref_num}")
+
     # ASR model related
-    --feats_normalize # Normalizaton layer type (default="${feats_normalize}").
+    --feats_normalize    # Normalizaton layer type (default="${feats_normalize}").
     --num_splits_asr=1   # Number of splitting for lm corpus  (default="${num_splits_asr}").
 
     # Decoding related
@@ -193,15 +206,8 @@ Options:
     --decode_args      # Arguments for decoding, e.g., "--lm_weight 0.1" (default="${decode_args}").
                        # Note that it will overwrite args in decode config.
     --decode_lm        # Language modle path for decoding (default="${decode_lm}").
+    --decode_joint_model # Enhancement model path for inference (default="${decode_joint_model}").
 
-    # Enhancemnt model related
-    --joint_tag    # Suffix to the result dir for enhancement model training (default="${joint_tag}").
-    --joint_config # Config for enhancement + ASR model joint training (default="${joint_config}").
-    --joint_args   # Arguments for enhancement model training, e.g., "--max_epoch 10" (default="${joint_args}").
-                 # Note that it will overwrite args in enhancement config.
-    --spk_num    # Number of speakers in the input audio (default="${spk_num}")
-    --noise_type_num  # Number of noise types in the input audio (default="${noise_type_num}")
-    --dereverb_ref_num # Number of references for dereverberation (default="${dereverb_ref_num}")
 
     # Training data related
     --use_signal_ref          # Whether or not to use signal references to compute signal-level losses
@@ -211,9 +217,6 @@ Options:
     --use_signal_noise_ref    # Whether or not to use noise signal as an additional reference
                          for training a denoising model (default="${use_signal_noise_ref}")
 
-    # Enhancement related
-    --decode_args      # Arguments for enhancement in the inference stage (default="${decode_args}")
-    --decode_joint_model # Enhancement model path for inference (default="${decode_joint_model}").
 
     # Evaluation related
     --scoring_protocol    # Metrics to be used for scoring (default="${scoring_protocol}")
@@ -378,23 +381,23 @@ if ! "${skip_data_prep}"; then
 
     if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
         if ! $use_signal_dereverb_ref && [ -n "${speed_perturb_factors}" ]; then
-           log "Stage 2: Speed perturbation: data/${train_set} -> data/${train_set}_sp"
+            log "Stage 2: Speed perturbation: data/${train_set} -> data/${train_set}_sp"
 
             _scp_list="wav.scp "
             for i in $(seq ${spk_num}); do
                 _scp_list+="spk${i}.scp "
             done
 
-           for factor in ${speed_perturb_factors}; do
-               if [[ $(bc <<<"${factor} != 1.0") == 1 ]]; then
-                   scripts/utils/perturb_enh_data_dir_speed.sh "${factor}" "data/${train_set}" "data/${train_set}_sp${factor}" "${_scp_list}"
-                   _dirs+="data/${train_set}_sp${factor} "
-               else
-                   # If speed factor is 1, same as the original
-                   _dirs+="data/${train_set} "
-               fi
-           done
-           utils/combine_data.sh --extra-files "${_scp_list}" "data/${train_set}_sp" ${_dirs}
+            for factor in ${speed_perturb_factors}; do
+                if [[ $(bc <<<"${factor} != 1.0") == 1 ]]; then
+                    scripts/utils/perturb_enh_data_dir_speed.sh "${factor}" "data/${train_set}" "data/${train_set}_sp${factor}" "${_scp_list}"
+                    _dirs+="data/${train_set}_sp${factor} "
+                else
+                    # If speed factor is 1, same as the original
+                    _dirs+="data/${train_set} "
+                fi
+            done
+            utils/combine_data.sh --extra-files "${_scp_list}" "data/${train_set}_sp" ${_dirs}
         else
            log "Skip stage 2: Speed perturbation"
         fi
@@ -1025,7 +1028,7 @@ if ! "${skip_train}"; then
         fi
 
 
-        log "enh training started... log: '${joint_exp}/train.log'"
+        log "enh-asr training started... log: '${joint_exp}/train.log'"
         if echo "${cuda_cmd}" | grep -e queue.pl -e queue-freegpu.pl &> /dev/null; then
             # SGE can't include "/" in a job name
             jobname="$(basename ${joint_exp})"

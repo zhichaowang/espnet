@@ -86,7 +86,7 @@ decoder_choices = ClassChoices(
 MAX_REFERENCE_NUM = 100
 
 
-class ASRTask(AbsTask):
+class EnhASRTask(AbsTask):
     # If you need more than one optimizers, change this value
     num_optimizers: int = 1
 
@@ -234,8 +234,9 @@ class ASRTask(AbsTask):
         cls, args: argparse.Namespace, train: bool
     ) -> Optional[Callable[[str, Dict[str, np.array]], Dict[str, np.ndarray]]]:
         assert check_argument_types()
-        # TODO(Jing): ask Kamo if it ok to support several args,
-        # like text_name = 'text_ref1' and 'text_ref2'
+        # Note(Jing): write the CommonPreprocessor_multi for multi args,
+        # e.g., text_name = ["text_ref1" , "text_ref2"]
+        # TODO(Jing): variable number of text_ref
         if args.use_preprocessor:
             retval = CommonPreprocessor_multi(
                 train=train,
@@ -300,6 +301,7 @@ class ASRTask(AbsTask):
         enh_model = enh_choices.get_class(args.enh)(**args.enh_conf)
         enh_model = ESPnetEnhancementModel(enh_model, **args.enh_model_conf)
 
+        # Step 1-7 follows the asr.py to build asr_model.
         # 1. frontend
         if args.input_size is None:
             # Extract features in the model

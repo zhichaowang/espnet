@@ -455,17 +455,17 @@ class ESPnetEnhancementModel(AbsESPnetModel):
             return loss, spectrum_pre, mask_pre, tf_length, perm
 
         else:
-            if speech_ref.dim() == 4:
-                # For si_snr loss of multi-channel input,
-                # only select one channel as the reference
-                speech_ref = speech_ref[..., self.ref_channel]
-
             speech_pre, speech_lengths, *__ = self.enh_model.forward_rawwav(
                 speech_mix, speech_lengths
             )
             if not cal_loss:
                 loss, perm = None, None
                 return loss, speech_pre, None, speech_lengths, perm
+
+            if speech_ref.dim() == 4:
+                # For si_snr loss of multi-channel input,
+                # only select one channel as the reference
+                speech_ref = speech_ref[..., self.ref_channel]
 
             # speech_pre: list[(batch, sample)]
             assert speech_pre[0].dim() == 2, speech_pre[0].dim()

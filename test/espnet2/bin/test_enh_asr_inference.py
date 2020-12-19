@@ -11,7 +11,7 @@ from espnet.nets.beam_search import Hypothesis
 from espnet2.bin.enh_asr_inference import get_parser
 from espnet2.bin.enh_asr_inference import main
 from espnet2.bin.enh_asr_inference import Speech2Text
-from espnet2.tasks.enh_asr import ASRTask
+from espnet2.tasks.enh_asr import EnhASRTask
 from espnet2.tasks.lm import LMTask
 
 is_torch_1_2_plus = LooseVersion(torch.__version__) >= LooseVersion("1.2.0")
@@ -40,7 +40,7 @@ def token_list(tmp_path: Path):
 @pytest.fixture()
 def joint_model_config_file(tmp_path: Path, token_list):
     # Write default configuration file
-    ASRTask.main(
+    EnhASRTask.main(
         cmd=[
             "--dry_run",
             "true",

@@ -24,7 +24,7 @@ from espnet.nets.scorers.ctc import CTCPrefixScorer
 from espnet.nets.scorers.length_bonus import LengthBonus
 from espnet.utils.cli_utils import get_commandline_args
 from espnet2.fileio.datadir_writer import DatadirWriter
-from espnet2.tasks.enh_asr import ASRTask
+from espnet2.tasks.enh_asr import EnhASRTask
 from espnet2.tasks.lm import LMTask
 from espnet2.text.build_tokenizer import build_tokenizer
 from espnet2.text.token_id_converter import TokenIDConverter
@@ -76,7 +76,7 @@ class Speech2Text:
 
         # 1. Build Joint model
         scorers = {}
-        joint_model, joint_train_args = ASRTask.build_model_from_file(
+        joint_model, joint_train_args = EnhASRTask.build_model_from_file(
             joint_train_config, joint_model_file, device
         )
         joint_model.eval()
@@ -332,14 +332,14 @@ def inference(
     )
 
     # 3. Build data-iterator
-    loader = ASRTask.build_streaming_iterator(
+    loader = EnhASRTask.build_streaming_iterator(
         data_path_and_name_and_type,
         dtype=dtype,
         batch_size=batch_size,
         key_file=key_file,
         num_workers=num_workers,
-        preprocess_fn=ASRTask.build_preprocess_fn(speech2text.joint_train_args, False),
-        collate_fn=ASRTask.build_collate_fn(speech2text.joint_train_args, False),
+        preprocess_fn=EnhASRTask.build_preprocess_fn(speech2text.joint_train_args, False),
+        collate_fn=EnhASRTask.build_collate_fn(speech2text.joint_train_args, False),
         allow_variable_data_keys=allow_variable_data_keys,
         inference=True,
     )

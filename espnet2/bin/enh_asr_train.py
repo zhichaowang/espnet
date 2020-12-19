@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-from espnet2.tasks.enh_asr import ASRTask
+from espnet2.tasks.enh_asr import EnhASRTask
 
 
 def get_parser():
-    parser = ASRTask.get_parser()
+    parser = EnhASRTask.get_parser()
     return parser
 
 
 def main(cmd=None):
-    r"""ASR training.
+    r"""Enh-ASR training.
 
     Example:
-        % python asr_train.py asr --print_config --optim adadelta \
-                > conf/train_asr.yaml
-        % python asr_train.py --config conf/train_asr.yaml
+        % python enh_asr_train.py asr --print_config --optim adadelta \
+                > conf/train.yaml
+        % python enh_asr_train.py --config conf/train.yaml
     """
-    ASRTask.main(cmd=cmd)
+    EnhASRTask.main(cmd=cmd)
 
 
 if __name__ == "__main__":
