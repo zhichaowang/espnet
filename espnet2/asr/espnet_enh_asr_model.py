@@ -27,9 +27,7 @@ def fliter_attrs(a, b):
 
 
 class ESPnetEnhASRModel(AbsESPnetModel):
-    """Enhancement frontend with
-    CTC-attention hybrid Encoder-Decoder model
-    """
+    """Enhancement frontend with CTC-attention hybrid Encoder-Decoder model."""
 
     def __init__(
         self,
@@ -223,16 +221,15 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                     speech_mix_lengths,
                     speech_ref=speech_ref,
                 )
+                if isinstance(speech_pre[0], ComplexTensor):
+                    speech_pre = [
+                        torch.stack([pre.real, pre.imag], dim=-1) for pre in speech_pre
+                    ]
                 if len(speech_pre) > 1:  # multi-speaker case
                     # The return value speech_pre is actually the spectrum
-                    # List[torch.Tensor(B, T, D, 2)] or List[torch.complex(B, T, D)]
-                    if isinstance(speech_pre[0], ComplexTensor):
-                        speech_pre = [
-                            torch.stack([pre.real, pre.imag], dim=-1)
-                            for pre in speech_pre
-                        ]
+                    # List[torch.Tensor(B, T, D, 2)]
                     assert speech_pre[0].dim() >= 4 and speech_pre[0].size(-1) == 2
-                    speech_pre_all = torch.cat(speech_pre, dim=0)  # (N_spk*B, T, D)
+                    speech_pre_all = torch.cat(speech_pre, dim=0)  # (N_spk*B, T, D, 2)
                     speech_pre_lengths = torch.cat(
                         [speech_pre_lengths, speech_pre_lengths]
                     )
@@ -240,10 +237,6 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                     text_ref_lengths = torch.cat(text_ref_lengths)
                     n_speaker_asr = 1 if self.cal_enh_loss else self.num_spk
                 else:  # single-speaker case
-                    assert isinstance(speech_pre[0], ComplexTensor)
-                    speech_pre = [
-                        torch.stack([pre.real, pre.imag], dim=-1) for pre in speech_pre
-                    ]
                     speech_pre_all, speech_pre_lengths = (
                         speech_pre[0],
                         speech_pre_lengths,
@@ -437,7 +430,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         )
         speech_mix = speech_mix[:, : speech_lengths.max()]
 
-        loss, speech_pre, mask_pre, out_lengths, perm = self._compute_loss(
+        loss, speech_pre, speech_ref, mask_pre, out_lengths, perm = self._compute_loss(
             speech_mix,
             speech_lengths,
             speech_ref,
@@ -455,8 +448,8 @@ class ESPnetEnhASRModel(AbsESPnetModel):
         if self.enh_return_type == "waveform":
             if resort_pre and perm is not None:
                 # resort the prediction wav with the perm from enh_loss
-                # speech_pre : list[(bs,...)] of spk
-                # perm : list[(num_spk)] of batch
+                # speech_pre : List[(BS, ...)] of spk
+                # perm : List[(num_spk)] of batch
                 speech_pre_list = []
                 for batch_idx, p in enumerate(perm):
                     batch_list = []
@@ -465,7 +458,7 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                     speech_pre_list.append(torch.stack(batch_list, dim=0))
 
                 speech_pre = torch.stack(speech_pre_list, dim=0)  # bs,num_spk,...
-                speech_pre = torch.unbind(speech_pre, dim=1) # list[(bs,...)] of spk
+                speech_pre = torch.unbind(speech_pre, dim=1)  # list[(bs,...)] of spk
             else:
                 # speech_pre = torch.stack(speech_pre, dim=1)  # bs,num_spk,...
                 pass
