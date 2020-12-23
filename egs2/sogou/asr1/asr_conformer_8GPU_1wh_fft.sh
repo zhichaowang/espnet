@@ -24,13 +24,13 @@ SECONDS=0
 
 # General configuration
 stage=10              # Processes starts from the specified stage.
-stop_stage=10     # Processes is stopped at the specified stage.
+stop_stage=12     # Processes is stopped at the specified stage.
 skip_data_prep=false # Skip data preparation stages.
 skip_train=false     # Skip training stages.
 skip_eval=false      # Skip decoding and evaluation stages.
 skip_upload=true     # Skip packing and uploading stages.
 ngpu=8               # The number of gpus ("0" uses cpu, otherwise use gpu).
-num_nodes=2          # The number of nodes.
+num_nodes=1          # The number of nodes.
 nj=40                # The number of parallel jobs.
 inference_nj=40      # The number of parallel jobs in decoding.
 gpu_inference=false  # Whether to perform gpu decoding.
@@ -64,7 +64,7 @@ bpe_char_cover=1.0  # character coverage when modeling BPE
 
 # Language model related
 use_lm=true       # Use language model for ASR decoding.
-lm_tag=         # Suffix to the result dir for language model training.
+lm_tag=1wh_mixLID         # Suffix to the result dir for language model training.
 lm_exp=           # Specify the direcotry path for LM experiment.
                   # If this option is specified, lm_tag is ignored.
 lm_config=        # Config for language model training.
@@ -83,7 +83,7 @@ asr_config= # Config for asr model training.
 asr_args=   # Arguments for asr model training, e.g., "--max_epoch 10".
             # Note that it will overwrite args in asr config.
 feats_normalize= # Normalizaton layer type.
-num_splits_asr=10          # Number of splitting for lm corpus.
+num_splits_asr=1           # Number of splitting for lm corpus.
 
 # Decoding related
 inference_tag=    # Suffix to the result dir for decoding.
@@ -256,7 +256,7 @@ bpedir="${token_listdir}/bpe_${bpemode}${nbpe}"
 bpeprefix="${bpedir}"/bpe
 bpemodel="${bpeprefix}".model
 bpetoken_list="${bpedir}"/tokens.txt
-chartoken_list="${token_listdir}"/char/tokens.txt
+chartoken_list="${token_listdir}"/char/bpe_5k/tokens.txt
 # NOTE: keep for future development.
 # shellcheck disable=SC2034
 wordtoken_list="${token_listdir}"/word/tokens.txt
@@ -310,11 +310,11 @@ if [ -z "${lm_tag}" ]; then
 fi
 
 # The directory used for collect-stats mode
-asr_stats_dir="${expdir}/asr_11wh_2020Q4_1th_and_2th_mixLID_stats"
+asr_stats_dir="${expdir}/asr_1wh_fft_mixLID_stats"
 if [ -n "${speed_perturb_factors}" ]; then
     asr_stats_dir="${asr_stats_dir}_sp"
 fi
-lm_stats_dir="${expdir}/lm_11wh_2020Q4_1th_and_2th_mixLID_stats"
+lm_stats_dir="${expdir}/lm_1wh_mixLID_stats"
 # The directory used for training commands
 if [ -z "${asr_exp}" ]; then
     asr_exp="${expdir}/asr_${asr_tag}"
@@ -972,9 +972,7 @@ if ! "${skip_train}"; then
             --cmd "${cuda_cmd} --name ${jobname}" \
             --log "${asr_exp}"/train.log \
             --ngpu "${ngpu}" \
-            --host "10.141.251.17,10.141.250.17" \
-            --master_port 59735 \
-            --master_addr "10.141.251.17"  \
+            --num_nodes "${num_nodes}" \
             --init_file_prefix "${asr_exp}"/.dist_init_ \
             --multiprocessing_distributed true -- \
             ${python} -m espnet2.bin.asr_train \
@@ -989,9 +987,7 @@ if ! "${skip_train}"; then
                 --valid_data_path_and_name_and_type "${_asr_valid_dir}/text,text,text" \
                 --valid_shape_file "${asr_stats_dir}/valid/speech_shape" \
                 --valid_shape_file "${asr_stats_dir}/valid/text_shape.${token_type}" \
-                --resume false \
-                --pretrain_path "${asr_exp}/video_model_3epoch.pth" \
-                --pretrain_key none \
+                --resume true \
                 --fold_length "${_fold_length}" \
                 --fold_length "${asr_text_fold_length}" \
                 --output_dir "${asr_exp}" \

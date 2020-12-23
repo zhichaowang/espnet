@@ -5,12 +5,11 @@ set -e
 set -u
 set -o pipefail
 
-#train_set=train_sogou_fbank_11w_2020Q4_nodup_LID_sort
-train_set=train_sogou_fbank_11w_2020Q4_1th_and_2th_LID_sort
-valid_set=train_sogou_fbank_11w_and_S1_dev_LID_200h
+train_set=train_sogou_fft_1wh_mix_nodev_nodup_LID
+valid_set=train_sogou_fft_1wh_mix_dev_110h
 test_sets="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou testmeeting_cat_agc-1218_sogou testreport_cat_agc_1-2m-1218_sogou testreport_cat_agc_2-4m-1218_sogou testreport_cat_agc_4-6m-1218_sogou testNewLong_sogou test0918_sogou"
 
-asr_config=conf/train_asr_conformer_relPos_swish_16GPU_accgrad1_14E4D_11wh.yaml
+asr_config=conf/train_asr_conformer_relPos_swish_8GPU_accgrad2_batch89600_14E4D_warmupLR0005_1wh_FFT.yaml
 inference_config=conf/decode_asr_transformer_lm0.2_5best.yaml
 
 lm_config=conf/train_lm.yaml
@@ -21,7 +20,7 @@ use_wordlm=false
 # (train_set will be "${train_set}_sp" if speed_perturb_factors is specified)
 speed_perturb_factors=
 
-./asr_conformer_16GPU_11wh.sh                          \
+./asr_conformer_8GPU_1wh_fft.sh                           \
     --lang zh                                          \
     --audio_format wav                                 \
     --feats_type extracted                             \
@@ -30,7 +29,7 @@ speed_perturb_factors=
     --use_word_lm ${use_wordlm}                        \
     --lm_config "${lm_config}"                         \
     --asr_config "${asr_config}"                       \
-    --inference_config "${inference_config}"           \
+    --inference_config "${inference_config}"                 \
     --train_set "${train_set}"                         \
     --valid_set "${valid_set}"                         \
     --test_sets "${test_sets}"                         \
