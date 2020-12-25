@@ -9,7 +9,7 @@ train_set=train_sogou_fbank_500h
 valid_set=test8000_sogou
 test_sets="test8000_sogou not_on_screen_sogou testIOS_sogou testDuiHua_sogou"
 
-asr_config=conf/train_asr_conformer_fsmn_ENCDEC_8GPU_accgrad1_500h.yaml
+asr_config=conf/train_asr_conformer_relPos_swish_8GPU_accgrad1_warmupLR_20E6D_500h.yaml
 inference_config=conf/decode_asr_transformer.yaml
 
 lm_config=conf/train_lm.yaml
