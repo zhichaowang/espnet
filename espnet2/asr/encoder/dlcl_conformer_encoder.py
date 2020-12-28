@@ -104,6 +104,7 @@ scrnnnn normalize_before (bool): Whether to use layer_norm before the first bloc
         assert check_argument_types()
         super().__init__()
         self._output_size = output_size
+        self.history_window_size = history_window_size
 
         activation = get_activation(activation_type)
         if pos_enc_layer_type == "abs_pos":
@@ -222,6 +223,7 @@ scrnnnn normalize_before (bool): Whether to use layer_norm before the first bloc
         convolution_layer_args = (output_size, cnn_module_kernel, activation)
 
         if self.history_window_size != 1:
+            print("========In DLCL=========")
             self.history = DynamicLinearCombination(output_size, 
                                                     num_blocks,
                                                     self.history_window_size,
@@ -238,8 +240,8 @@ scrnnnn normalize_before (bool): Whether to use layer_norm before the first bloc
                     dropout_rate,
                     normalize_before,
                     concat_after, 
-                )
-            )
+                ) for i in range(num_blocks)
+            ])
         else:
             self.encoders = repeat(
                 num_blocks,
