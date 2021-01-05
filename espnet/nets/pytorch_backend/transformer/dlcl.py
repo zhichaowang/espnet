@@ -42,10 +42,10 @@ class DynamicLinearCombination(nn.Module):
                                                    init_value,
                                                    history_window_size)
         # init triangular layer norm
-        if normalize_embed:
-            self.layer_norms = nn.ModuleList([nn.LayerNorm(self.dim) for _ in range(layer_num)])
-        else:
-            self.layer_norms = nn.ModuleList([nn.Sequential()] + [nn.LayerNorm(self.dim) for _ in range(layer_num-1)])
+#        if normalize_embed:
+#            self.layer_norms = nn.ModuleList([nn.LayerNorm(self.dim) for _ in range(layer_num)])
+#        else:
+#            self.layer_norms = nn.ModuleList([nn.Sequential()] + [nn.LayerNorm(self.dim) for _ in range(layer_num-1)])
 
         # states
         self.count = 0
@@ -104,7 +104,7 @@ class DynamicLinearCombination(nn.Module):
         mask_tensor = self._init_mask(layer_num, window_size)
         if self.weight_type == 'scalar':
             self.last_dim = 1
-        elif weight_type == 'vector':
+        elif self.weight_type == 'vector':
             self.last_dim = self.dim
         else:
             raise ValueError('unknown weight_type:{}'.format(self.weight_type))
@@ -117,7 +117,8 @@ class DynamicLinearCombination(nn.Module):
 
         # first layer
         if self.count == 1:
-            self.layers.append(self.layer_norms[0](layer))
+#            self.layers.append(self.layer_norms[0](layer))
+            self.layers.append(layer)
             # compatible when running on CPU
             if layer.is_cuda and not self.weight_mask.is_cuda:
                 self.weight_mask = self.weight_mask.cuda()
@@ -127,8 +128,8 @@ class DynamicLinearCombination(nn.Module):
             return
 
         # following layer
-        if self.normalize_before:
-            layer = self.layer_norms[self.count-1](layer)
+#        if self.normalize_before:
+#            layer = self.layer_norms[self.count-1](layer)
 
         self.layers.append(layer)
 
