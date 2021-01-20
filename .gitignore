@@ -66,3 +66,4 @@ tools/activate_python.sh
 tools/sctk*
 tools/sph2pipe_v2.5*
 tools/warp-rnnt
+tools/BeamformIt
