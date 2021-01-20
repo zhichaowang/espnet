@@ -13,9 +13,13 @@ from typeguard import check_return_type
 
 from espnet2.enh.abs_enh import AbsEnhancement
 from espnet2.enh.espnet_model import ESPnetEnhancementModel
+from espnet2.enh.nets.asteroid_models import AsteroidModel_Converter
 from espnet2.enh.nets.beamformer_net import BeamformerNet
+from espnet2.enh.nets.deep_mfmvdr_net import DeepMFMVDRNet
+from espnet2.enh.nets.dprnn_raw import FaSNet_base as DPRNN
 from espnet2.enh.nets.tasnet import TasNet
 from espnet2.enh.nets.tf_mask_net import TFMaskingNet
+from espnet2.enh.nets.wave_u_net import WaveUNet
 from espnet2.tasks.abs_task import AbsTask
 from espnet2.torch_utils.initialize import initialize
 from espnet2.train.class_choices import ClassChoices
@@ -28,7 +32,15 @@ from espnet2.utils.types import str_or_none
 
 enh_choices = ClassChoices(
     name="enh",
-    classes=dict(tf_masking=TFMaskingNet, tasnet=TasNet, wpe_beamformer=BeamformerNet),
+    classes=dict(
+        dprnn=DPRNN,
+        mfmvdr=DeepMFMVDRNet,
+        tasnet=TasNet,
+        tf_masking=TFMaskingNet,
+        waveunet=WaveUNet,
+        wpe_beamformer=BeamformerNet,
+        asteroid=AsteroidModel_Converter,
+    ),
     type_check=AbsEnhancement,
     default="tf_masking",
 )
@@ -126,7 +138,7 @@ class EnhancementTask(AbsTask):
     def optional_data_names(
         cls, train: bool = True, inference: bool = False
     ) -> Tuple[str, ...]:
-        retval = ["dereverb_ref"]
+        retval = ["dereverb_ref{}".format(n) for n in range(1, MAX_REFERENCE_NUM + 1)]
         retval += ["speech_ref{}".format(n) for n in range(2, MAX_REFERENCE_NUM + 1)]
         retval += ["noise_ref{}".format(n) for n in range(1, MAX_REFERENCE_NUM + 1)]
         retval = tuple(retval)
@@ -140,7 +152,7 @@ class EnhancementTask(AbsTask):
         enh_model = enh_choices.get_class(args.enh)(**args.enh_conf)
 
         # 1. Build model
-        model = ESPnetEnhancementModel(enh_model=enh_model)
+        model = ESPnetEnhancementModel(enh_model=enh_model, **args.model_conf)
 
         # FIXME(kamo): Should be done in model?
         # 2. Initialize

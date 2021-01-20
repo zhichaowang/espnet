@@ -94,6 +94,11 @@ class CommonPreprocessor(AbsPreprocessor):
 
 
 class CommonPreprocessor_multi(AbsPreprocessor):
+    """Preprocessor for multiple values in the same arg,
+    mainly used for the multi-speaker tasks.
+    Currently only supports the multiple text file.
+    """
+
     def __init__(
         self,
         train: bool,

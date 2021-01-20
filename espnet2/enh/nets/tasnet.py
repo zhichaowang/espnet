@@ -1,5 +1,7 @@
 from collections import OrderedDict
 import math
+from typing import List
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -8,7 +10,7 @@ import torch.nn.functional as F
 
 from espnet2.enh.abs_enh import AbsEnhancement
 
-EPS = 1e-8
+EPS = torch.finfo(torch.get_default_dtype()).eps
 
 
 def overlap_and_add(signal, frame_step):
@@ -70,6 +72,7 @@ def remove_pad(inputs, inputs_lengths):
     Args:
         inputs: torch.Tensor, [B, C, T] or [B, T], B is batch size
         inputs_lengths: torch.Tensor, [B]
+
     Returns:
         results: a list containing B items, each item is [C, T], T varies
     """
@@ -115,6 +118,7 @@ class TasNet(AbsEnhancement):
             norm_type: BN, gLN, cLN
             causal: causal or non-causal
             mask_nonlinear: use which non-linear function to generate mask
+
         Reference:
             Luo Y, Mesgarani N. Tasnet: time-domain audio
             separation network for real-time, single-channel speech separation
@@ -162,8 +166,9 @@ class TasNet(AbsEnhancement):
         Args:
             mixture: [M, T], M is batch size, T is #samples
             ilens (torch.Tensor): input lengths [Batch]
+
         Returns:
-            est_source: [M, C, T]
+            est_source: List[M, T]
             lens:  [Batch]
         """
         mixture_w = self.encoder(mixture)
@@ -180,6 +185,11 @@ class TasNet(AbsEnhancement):
             zip(["spk{}".format(i + 1) for i in range(self.num_spk)], est_source)
         )
         return est_source, ilens, masks
+
+    def process_targets(
+        self, input: torch.Tensor, target: List[torch.Tensor], ilens: torch.Tensor
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        return target, ilens
 
     @classmethod
     def load_model(cls, path):
@@ -233,7 +243,7 @@ class TasNet(AbsEnhancement):
 
 
 class Encoder(nn.Module):
-    """Estimation of the nonnegative mixture weight by a 1-D conv layer. """
+    """Estimation of the nonnegative mixture weight by a 1-D conv layer."""
 
     def __init__(self, L, N):
         super(Encoder, self).__init__()
@@ -248,6 +258,7 @@ class Encoder(nn.Module):
 
         Args:
             mixture: [M, T], M is batch size, T is #samples
+
         Returns:
             mixture_w: [M, N, K], where K = (T-L)/(L/2)+1 = 2T/L-1
         """
@@ -265,11 +276,12 @@ class Decoder(nn.Module):
         self.basis_signals = nn.Linear(N, L, bias=False)
 
     def forward(self, mixture_w, est_mask):
-        """Forward
+        """Forward.
 
         Args:
             mixture_w: [M, N, K]
             est_mask: [M, C, N, K]
+
         Returns:
             est_source: [M, C, T]
         """
@@ -338,11 +350,12 @@ class TemporalConvNet(nn.Module):
         )
 
     def forward(self, mixture_w):
-        """Keep this API same with TasNet
+        """Keep this API same with TasNet.
 
         Args:
             mixture_w: [M, N, K], M is batch size
-        returns:
+
+        Returns:
             est_mask: [M, C, N, K]
         """
         M, N, K = mixture_w.size()
@@ -393,6 +406,7 @@ class TemporalBlock(nn.Module):
 
         Args:
             x: [M, B, K]
+
         Returns:
             [M, B, K]
         """
@@ -445,6 +459,7 @@ class DepthwiseSeparableConv(nn.Module):
 
         Args:
             x: [M, H, K]
+
         Returns:
             result: [M, B, K]
         """
@@ -452,7 +467,7 @@ class DepthwiseSeparableConv(nn.Module):
 
 
 class Chomp1d(nn.Module):
-    """To ensure the output length is the same as the input. """
+    """To ensure the output length is the same as the input."""
 
     def __init__(self, chomp_size):
         super(Chomp1d, self).__init__()
@@ -463,6 +478,7 @@ class Chomp1d(nn.Module):
 
         Args:
             x: [M, H, Kpad]
+
         Returns:
             [M, H, K]
         """
@@ -492,7 +508,7 @@ def chose_norm(norm_type, channel_size):
 
 
 class ChannelwiseLayerNorm(nn.Module):
-    """Channel-wise Layer Normalization (cLN)"""
+    """Channel-wise Layer Normalization (cLN)."""
 
     def __init__(self, channel_size):
         super(ChannelwiseLayerNorm, self).__init__()
@@ -509,6 +525,7 @@ class ChannelwiseLayerNorm(nn.Module):
 
         Args:
             y: [M, N, K], M is batch size, N is channel size, K is length
+
         Returns:
             cLN_y: [M, N, K]
         """
@@ -519,7 +536,7 @@ class ChannelwiseLayerNorm(nn.Module):
 
 
 class GlobalLayerNorm(nn.Module):
-    """Global Layer Normalization (gLN)"""
+    """Global Layer Normalization (gLN)."""
 
     def __init__(self, channel_size):
         super(GlobalLayerNorm, self).__init__()
@@ -536,6 +553,7 @@ class GlobalLayerNorm(nn.Module):
 
         Args:
             y: [M, N, K], M is batch size, N is channel size, K is length
+
         Returns:
             gLN_y: [M, N, K]
         """

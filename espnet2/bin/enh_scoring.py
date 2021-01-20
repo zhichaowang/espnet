@@ -8,11 +8,14 @@ from typing import Union
 from mir_eval.separation import bss_eval_sources
 import numpy as np
 from pystoi import stoi
+import torch
 from typeguard import check_argument_types
 
 from espnet.utils.cli_utils import get_commandline_args
+from espnet2.enh.espnet_model import ESPnetEnhancementModel
 from espnet2.fileio.datadir_writer import DatadirWriter
 from espnet2.fileio.sound_scp import SoundScpReader
+from espnet2.tasks.enh import EnhancementTask
 from espnet2.utils import config_argparse
 
 
@@ -24,6 +27,9 @@ def scoring(
     ref_scp: List[str],
     inf_scp: List[str],
     ref_channel: int,
+    enh_train_config: str = None,
+    enh_model_file: str = None,
+    device: str = "cpu",
 ):
     assert check_argument_types()
 
@@ -31,6 +37,15 @@ def scoring(
         level=log_level,
         format="%(asctime)s (%(module)s:%(lineno)d) %(levelname)s: %(message)s",
     )
+
+    if enh_train_config is not None:
+        # Build Enh model
+        enh_model, enh_train_args = EnhancementTask.build_model_from_file(
+            enh_train_config, enh_model_file, device
+        )
+        enh_model.eval()
+    else:
+        enh_model = None
 
     assert len(ref_scp) == len(inf_scp), ref_scp
     num_spk = len(ref_scp)
@@ -52,6 +67,13 @@ def scoring(
     with DatadirWriter(output_dir) as writer:
         for key in keys:
             ref_audios = [ref_reader[key][1] for ref_reader in ref_readers]
+            if enh_model is not None:
+                ref_audios = enh_model.process_targets(
+                    None,
+                    [torch.from_numpy(ra).unsqueeze(0) for ra in ref_audios],
+                    torch.LongTensor([ref_audios[0].shape[0]]),
+                )
+                ref_audios = [ra.squeeze(0).numpy() for ra in ref_audios]
             inf_audios = [inf_reader[key][1] for inf_reader in inf_readers]
             ref = np.array(ref_audios)
             inf = np.array(inf_audios)
@@ -65,15 +87,28 @@ def scoring(
                     "Reference must be multi-channel when the \
                     network output is multi-channel."
                 )
+            elif ref.ndim == inf.ndim == 3:
+                # multi-channel reference and output
+                ref = ref[..., ref_channel]
+                inf = inf[..., ref_channel]
 
             sdr, sir, sar, perm = bss_eval_sources(ref, inf, compute_permutation=True)
 
             for i in range(num_spk):
                 stoi_score = stoi(ref[i], inf[int(perm[i])], fs_sig=sample_rate)
+                si_snr_score = -float(
+                    ESPnetEnhancementModel.si_snr_loss(
+                        torch.from_numpy(ref[i][None, ...]),
+                        torch.from_numpy(inf[int(perm[i])][None, ...]),
+                    )
+                )
                 writer[f"STOI_spk{i + 1}"][key] = str(stoi_score)
+                writer[f"SI_SNR_spk{i + 1}"][key] = str(si_snr_score)
                 writer[f"SDR_spk{i + 1}"][key] = str(sdr[i])
                 writer[f"SAR_spk{i + 1}"][key] = str(sar[i])
                 writer[f"SIR_spk{i + 1}"][key] = str(sir[i])
+                # save permutation assigned script file
+                writer[f"wav_spk{i + 1}"][key] = inf_readers[perm[i]].data[key]
 
 
 def get_parser():
@@ -117,6 +152,10 @@ def get_parser():
     )
     group.add_argument("--key_file", type=str)
     group.add_argument("--ref_channel", type=int, default=0)
+
+    group = parser.add_argument_group("The model configuration related")
+    group.add_argument("--enh_train_config", type=str, required=True)
+    group.add_argument("--enh_model_file", type=str, required=True)
 
     return parser
 

@@ -3,10 +3,11 @@
 
 AISHELL=downloads
 AN4=downloads
-WSJ0=
-WSJ1=
+WSJ0=/search/speech/wangzhichao/database/WSJ/WSJ0
+WSJ1=/search/speech/wangzhichao/database/WSJ/WSJ1
 WSJCAM0=
 REVERB=
+REVERB_OUT="${PWD}/REVERB"  # Output file path
 CHIME3=
 CHIME4=
 CSJDATATOP=
@@ -20,14 +21,17 @@ CSJVER=dvd  ## Set your CSJ format (dvd or usb).
             ##            e.g. $ ls $CSJDATATOP(USB) => 00README.txt DOC MORPH ... WAV fileList.csv
             ## Case merl :MERL setup. Neccesary directory is WAV and sdb
 CSMSC=downloads
+DIRHA_WSJ=
 HKUST1=
 HKUST2=
+LABOROTV=
+TEDXJP=
 LIBRISPEECH=
 LJSPEECH=downloads
 JSSS=downloads
 JSUT=downloads
 JVS=downloads
-TIMIT=
+TIMIT=$(realpath ../../../../TIMIT)
 VOXFORGE=downloads
 AMI=
 COMMONVOICE=downloads
@@ -56,12 +60,14 @@ BABEL_401=
 BABEL_402=
 BABEL_403=
 BABEL_404=
+TEDLIUM3=downloads
 VCTK=downloads
 VIVOS=downloads
 YESNO=downloads
 HOW2_TEXT=downloads/how2-300h-v1
 HOW2_FEATS=downloads/fbank_pitch_181516
 ZEROTH_KOREAN=downloads
+LRS2=
 
 # For only JHU environment
 if [[ "$(hostname -d)" == clsp.jhu.edu ]]; then
@@ -69,8 +75,9 @@ if [[ "$(hostname -d)" == clsp.jhu.edu ]]; then
     AN4=
     WSJ0=
     WSJ1=
-    WSJCAM0=
-    REVERB=
+    WSJCAM0=/export/corpora3/LDC/LDC95S24/wsjcam0
+    REVERB=/export/corpora5/REVERB_2014/REVERB
+    REVERB_OUT="${PWD}/REVERB"  # Output file path
     CHIME3=
     CHIME4=
     CSJDATATOP=/export/corpora5/CSJ/USB
@@ -84,8 +91,11 @@ if [[ "$(hostname -d)" == clsp.jhu.edu ]]; then
                 ##            e.g. $ ls $CSJDATATOP(USB) => 00README.txt DOC MORPH ... WAV fileList.csv
                 ## Case merl :MERL setup. Neccesary directory is WAV and sdb
     CSMSC=downloads
+    DIRHA_WSJ=
     HKUST1=
     HKUST2=
+    LABOROTV=
+    TEDXJP=
     LIBRISPEECH=
     LJSPEECH=downloads
     JSSS=downloads
@@ -120,6 +130,7 @@ if [[ "$(hostname -d)" == clsp.jhu.edu ]]; then
     BABEL_402=/export/babel/data/402-javanese/IARPA-babel402b-v1.0b-build/BABEL_OP3_402
     BABEL_403=/export/babel/data/403-dholuo/IARPA-babel403b-v1.0b-build/BABEL_OP3_403
     BABEL_404=/export/corpora/LDC/LDC2016S12/IARPA_BABEL_OP3_404
+    TEDLIUM3=downloads
     VCTK=downloads
     VIVOS=
     YESNO=

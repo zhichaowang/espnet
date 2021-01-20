@@ -37,4 +37,3 @@ enh_conf:
     num_spk: 2
     utt_mvn: False
     nonlinear: relu
-    

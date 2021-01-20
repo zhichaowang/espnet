@@ -1,0 +1,103 @@
+batch_type: folded
+batch_size: 8
+accum_grad: 4
+max_epoch: 50
+patience: none
+num_att_plot: 0
+# The initialization method for model parameters
+init: xavier_uniform
+best_model_criterion:
+-   - valid
+    - acc
+    - max
+-   - valid
+    - loss
+    - min
+keep_nbest_models: 10
+unused_parameters: true
+
+batch_type: folded
+num_workers: 4
+optim: adam
+optim_conf:
+    lr: 5.0e-04
+val_scheduler_criterion:
+    - valid
+    - loss
+scheduler: warmuplr
+scheduler_conf:
+    warmup_steps: 60000
+
+# Enhancement Related
+enh: wpe_beamformer
+enh_conf:
+    loss_type: null
+    n_fft: 256
+    win_length: 256
+    hop_length: 64
+    num_spk: 2
+    normalize_input: False
+    use_wpe: False
+    wnet_type: blstmp
+    wlayers: 3
+    wunits: 300
+    wprojs: 320
+    wdropout_rate: 0.0
+    taps: 5
+    delay: 3
+    use_dnn_mask_for_wpe: True
+    use_beamformer: True
+    bnet_type: blstmp
+    blayers: 3
+    bunits: 512
+    bprojs: 512
+    badim: 320
+    ref_channel: 0
+    use_noise_mask: True
+    beamformer_type: mvdr_souden
+    bdropout_rate: 0.0
+
+# ASR Related
+frontend: default
+frontend_conf:
+    fs: 8000
+    n_fft: 256
+    win_length: 256
+    hop_length: 64
+    frontend_conf: null
+    apply_stft: False
+
+encoder: transformer
+encoder_conf:
+    output_size: 256
+    attention_heads: 4
+    linear_units: 2048
+    num_blocks: 12
+    dropout_rate: 0.1
+    positional_dropout_rate: 0.1
+    attention_dropout_rate: 0.0
+    input_layer: conv2d
+    normalize_before: true
+
+decoder: transformer
+decoder_conf:
+    attention_heads: 4
+    linear_units: 2048
+    num_blocks: 6
+    dropout_rate: 0.1
+    positional_dropout_rate: 0.1
+    self_attention_dropout_rate: 0.0
+    src_attention_dropout_rate: 0.0
+
+ctc_conf:
+    reduce: False
+ 
+asr_model_conf:
+    ctc_weight: 0.2
+    lsm_weight: 0.1
+    length_normalized_loss: false
+
+joint_model_conf:
+    enh_return_type: spectrum # waveform or spectrum or none
+    enh_weight: 0
+    cal_enh_loss: false # whether to calculate enh_loss, need the reduce in ctc_conf

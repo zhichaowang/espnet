@@ -28,7 +28,6 @@ from espnet2.asr.decoder.transformer_decoder import (
 from espnet2.asr.decoder.transformer_decoder import TransformerDecoder
 from espnet2.asr.decoder.transformer_decoder import FsmnTransformerDecoder
 from espnet2.asr.encoder.abs_encoder import AbsEncoder
-from espnet2.asr.encoder.conformer_encoder import ConformerEncoder
 from espnet2.asr.encoder.dlcl_conformer_encoder import DLCLConformerEncoder
 from espnet2.asr.encoder.rnn_encoder import RNNEncoder
 from espnet2.asr.encoder.transformer_encoder import TransformerEncoder
