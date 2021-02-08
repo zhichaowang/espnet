@@ -162,17 +162,21 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                 if len(text_ref) == 1 or all(
                     [tr.equal(text_ref[0]) for tr in text_ref[1:]]
                 ):
-                    # TODO(Jing): find a better way to locate single-spk set
-                    # single-speaker case
-                    speech_pre_all = (
-                        speech_mix
-                        if speech_mix.dim() == 2
-                        else speech_mix[..., self.ref_channel]
+                    loss_enh, perm, speech_pre, speech_pre_lengths = self.forward_enh(
+                        speech_mix,
+                        speech_mix_lengths,
+                        speech_ref=speech_ref,
                     )
-                    speech_pre_lengths = speech_mix_lengths
+                    speech_pre_all = speech_pre[0]
+                    # speech_pre_all = (
+                    #    speech_mix
+                    #    if speech_mix.dim() == 2
+                    #    else speech_mix[..., self.ref_channel]
+                    #)
+                    # speech_pre_lengths = speech_mix_lengths
                     text_ref_all, text_ref_lengths = text_ref[0], text_ref_lengths[0]
-                    perm = True
-                    loss_enh = None
+                    # perm = True
+                    # loss_enh = None
                     n_speaker_asr = 1
                 else:
                     loss_enh, perm, speech_pre, speech_pre_lengths = self.forward_enh(

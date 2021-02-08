@@ -23,8 +23,8 @@ min() {
 SECONDS=0
 
 # General configuration
-stage=10              # Processes starts from the specified stage.
-stop_stage=12     # Processes is stopped at the specified stage.
+stage=11              # Processes starts from the specified stage.
+stop_stage=11     # Processes is stopped at the specified stage.
 skip_data_prep=false # Skip data preparation stages
 skip_train=false     # Skip training stages
 skip_eval=false      # Skip decoding and evaluation stages
@@ -1263,7 +1263,6 @@ if ! "${skip_eval}"; then
         # Show results in Markdown syntax
         scripts/utils/show_asr_result.sh "${joint_exp}" > "${joint_exp}"/RESULTS.md
         cat "${joint_exp}"/RESULTS.md
-
     fi
 else
     log "Skip the evaluation stages"
