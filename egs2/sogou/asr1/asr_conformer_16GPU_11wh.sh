@@ -256,7 +256,7 @@ bpedir="${token_listdir}/bpe_${bpemode}${nbpe}"
 bpeprefix="${bpedir}"/bpe
 bpemodel="${bpeprefix}".model
 bpetoken_list="${bpedir}"/tokens.txt
-chartoken_list="${token_listdir}"/char/tokens.txt
+chartoken_list="${token_listdir}"/char/bpe_5k/tokens.txt
 # NOTE: keep for future development.
 # shellcheck disable=SC2034
 wordtoken_list="${token_listdir}"/word/tokens.txt
@@ -989,9 +989,7 @@ if ! "${skip_train}"; then
                 --valid_data_path_and_name_and_type "${_asr_valid_dir}/text,text,text" \
                 --valid_shape_file "${asr_stats_dir}/valid/speech_shape" \
                 --valid_shape_file "${asr_stats_dir}/valid/text_shape.${token_type}" \
-                --resume false \
-                --pretrain_path "${asr_exp}/video_model_3epoch.pth" \
-                --pretrain_key none \
+                --resume true \
                 --fold_length "${_fold_length}" \
                 --fold_length "${asr_text_fold_length}" \
                 --output_dir "${asr_exp}" \
