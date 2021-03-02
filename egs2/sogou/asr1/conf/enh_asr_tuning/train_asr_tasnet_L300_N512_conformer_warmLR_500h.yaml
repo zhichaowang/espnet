@@ -37,7 +37,7 @@ val_scheduler_criterion:
 #    patience: 2
 enh: tasnet
 enh_conf:
-    N: 256
+    N: 512
     L: 300
     B: 128
     H: 512

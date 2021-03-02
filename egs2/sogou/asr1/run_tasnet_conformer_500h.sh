@@ -11,7 +11,7 @@ train_set=train_sogou_raw_500h
 valid_set=test8000_sogou_raw
 test_sets="test8000_sogou_raw not_on_screen_sogou_raw testIOS_sogou_raw testDuiHua_sogou_raw"
 
-joint_config=conf/enh_asr_tuning/train_asr_tasnet_L300_conformer_warmLR0.001_500h.yaml
+joint_config=conf/enh_asr_tuning/train_asr_tasnet_L300_N512_conformer_warmLR_500h.yaml
 inference_config=conf/decode_asr_transformer.yaml
 
 lm_config=conf/train_lm.yaml
