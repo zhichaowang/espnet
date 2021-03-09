@@ -8,10 +8,12 @@ set -o pipefail
 sample_rate=16k
 
 train_set=train_sogou_raw_500h
+#train_set=train_sogou_raw_500h
 valid_set=test8000_sogou_raw
-test_sets="test8000_sogou_raw not_on_screen_sogou_raw testIOS_sogou_raw testDuiHua_sogou_raw"
+#test_sets="test8000_sogou_raw not_on_screen_sogou_raw testIOS_sogou_raw testDuiHua_sogou_raw"
+test_sets="test8000_sogou_raw not_on_screen_sogou_raw testIOS_sogou_raw testDuiHua_sogou_raw test8000_snr0 test8000_snr5 test8000_snr10 test8000_snr15 test8000_snr20"
 
-joint_config=conf/enh_asr_tuning/train_asr_tasnet_L300_N512_conformer_warmLR_500h.yaml
+joint_config=conf/enh_asr_tuning/train_asr_tasnet_L80_N512_H512_Hop192_conformer_warmLR_500h.yaml
 inference_config=conf/decode_asr_transformer.yaml
 
 lm_config=conf/train_lm.yaml
