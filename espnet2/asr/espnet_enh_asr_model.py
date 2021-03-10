@@ -65,7 +65,8 @@ class ESPnetEnhASRModel(AbsESPnetModel):
                 asr_model.ctc_weight != 0.0 or cal_enh_loss
             )  # need at least one to cal PIT permutation
         if enh_return_type is None or enh_return_type == "waveform":
-            assert self.asr_subclass.frontend.stft, "need to apply stft in ASR frontend"
+            pass
+#            assert self.asr_subclass.frontend.stft, "need to apply stft in ASR frontend"
         elif enh_return_type == "spectrum":
             if self.asr_subclass.frontend.stft:
                 print(

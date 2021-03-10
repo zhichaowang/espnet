@@ -103,6 +103,7 @@ class TasNet(AbsEnhancement):
         causal: bool = False,
         mask_nonlinear: str = "relu",
         loss_type: str = "si_snr",
+        feat_dim: int = 71
     ):
         """Main tasnet class.
 
@@ -145,11 +146,11 @@ class TasNet(AbsEnhancement):
         self.mask_nonlinear = mask_nonlinear
         check_nonlinear(mask_nonlinear)
         # Components
-        self.encoder = Encoder(L, N)
+        self.encoder = Encoder(L, N, feat_dim)
         self.separator = TemporalConvNet(
             N, B, H, P, X, R, num_spk, norm_type, causal, mask_nonlinear
         )
-        self.decoder = Decoder(N, L)
+        self.decoder = Decoder(N, feat_dim)
         self.stft = None
         self.num_spk = num_spk
         # init
@@ -175,10 +176,10 @@ class TasNet(AbsEnhancement):
         est_mask = self.separator(mixture_w)
         est_source = self.decoder(mixture_w, est_mask)
 
-        # T changed after conv1d in encoder, fix it here
-        T_origin = mixture.size(-1)
-        T_conv = est_source.size(-1)
-        est_source = F.pad(est_source, (0, T_origin - T_conv))  # M,C,T
+#        # T changed after conv1d in encoder, fix it here
+#        T_origin = mixture.size(-1)
+#        T_conv = est_source.size(-1)
+#        est_source = F.pad(est_source, (0, T_origin - T_conv))  # M,C,T
 
         est_source = [es for es in est_source.transpose(0, 1)]  # List(M,T)
         masks = OrderedDict(
@@ -245,13 +246,14 @@ class TasNet(AbsEnhancement):
 class Encoder(nn.Module):
     """Estimation of the nonnegative mixture weight by a 1-D conv layer."""
 
-    def __init__(self, L, N):
+    def __init__(self, L, N, feat_dim):
         super(Encoder, self).__init__()
         # Hyper-parameter
-        self.L, self.N = L, N
+        self.L, self.N, self.feat_dim = L, N, feat_dim
         # Components
         # 50% overlap
-        self.conv1d_U = nn.Conv1d(1, N, kernel_size=L, stride=L // 2, bias=False)
+        #self.conv1d_U = nn.Conv1d(1, N, kernel_size=L, stride=L // 2, bias=False)
+        self.conv2d_U = nn.Conv2d(1, N, (L, feat_dim), 1, padding=((L-1)//2, 0), bias=False)
 
     def forward(self, mixture):
         """Forward.
@@ -262,18 +264,18 @@ class Encoder(nn.Module):
         Returns:
             mixture_w: [M, N, K], where K = (T-L)/(L/2)+1 = 2T/L-1
         """
-        mixture = torch.unsqueeze(mixture, 1)  # [M, 1, T]
-        mixture_w = F.relu(self.conv1d_U(mixture))  # [M, N, K]
+        mixture = torch.unsqueeze(mixture, 1)  # [M, 1, T, D]
+        mixture_w = F.relu(self.conv2d_U(mixture)).squeeze(-1)  # [M, N, T, 1]
         return mixture_w
 
 
 class Decoder(nn.Module):
-    def __init__(self, N, L):
+    def __init__(self, N, feat_dim):
         super(Decoder, self).__init__()
         # Hyper-parameter
-        self.N, self.L = N, L
+        self.N, self.feat_dim = N, feat_dim
         # Components
-        self.basis_signals = nn.Linear(N, L, bias=False)
+        self.basis_signals = nn.Linear(N, feat_dim, bias=False)
 
     def forward(self, mixture_w, est_mask):
         """Forward.
@@ -290,7 +292,7 @@ class Decoder(nn.Module):
         source_w = torch.transpose(source_w, 2, 3)  # [M, C, K, N]
         # S = DV
         est_source = self.basis_signals(source_w)  # [M, C, K, L]
-        est_source = overlap_and_add(est_source, self.L // 2)  # M x C x T
+#        est_source = overlap_and_add(est_source, self.L // 2)  # M x C x T
         return est_source
 
 
